@@ -9,7 +9,7 @@ export default function Hero() {
         className="absolute inset-0 bg-cover bg-center"
         style={{
           backgroundImage: `url(${heroImage})`,
-          filter: "brightness(0.75) contrast(1.1)",
+          filter: "brightness(0.4) contrast(1.1)",
         }}
       />
 
