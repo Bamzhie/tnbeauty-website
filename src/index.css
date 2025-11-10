@@ -7,18 +7,35 @@
   --color-muted: #999999;
   --color-gold: #D97706;
   --color-gold-light: #F59E0B;
+  --color-cream: #F5E6D3;
+  --color-peach: #E8B4A8;
 
   --font-display: "Cinzel Decorative", Georgia, serif;
   --font-sans: "Inter", system-ui, sans-serif;
 }
 
 @layer base {
-  body { @apply font-sans bg-gray-50 text-[var(--color-primary)]; }
-  h1, h2, h3, h4, h5, h6 { @apply font-display; }
+  body {
+    font-family: var(--font-sans);
+    background-color: rgb(249 250 251);
+    color: var(--color-primary);
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+  }
 }
 
 @layer utilities {
-  .text-gold { color: var(--color-gold); }
-  .bg-gold { background-color: var(--color-gold); }
-  .border-gold { border-color: var(--color-gold); }
+  .text-gold {
+    color: var(--color-gold);
+  }
+  
+  .bg-gold {
+    background-color: var(--color-gold);
+  }
+  
+  .border-gold {
+    border-color: var(--color-gold);
+  }
 }
