@@ -1,5 +1,6 @@
+// src/components/Hero.tsx
 import heroImage from "../assets/hero.jpg";
-import hero_image from "../assets/hero_bg.png";
+import BookNowButton from './BookNowBtn';
 
 export default function Hero() {
   return (
@@ -17,9 +18,9 @@ export default function Hero() {
             <p className="text-[#8B7355] text-lg">
               Discover your perfect style today
             </p>
-            <button className="bg-[#E8B4A8] text-white px-8 py-3 rounded-full hover:bg-[#D9A498] transition shadow-lg text-sm font-medium">
-              Book Your Nails
-            </button>
+
+            {/* Reusable Button */}
+            <BookNowButton />
           </div>
 
           {/* Right Image */}
