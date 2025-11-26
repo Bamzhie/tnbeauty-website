@@ -11,11 +11,19 @@ export const api = axios.create({
 
 export interface Service {
   name: string;
-  prices: {
+  hasLevels: boolean;
+  price?: number;
+  prices?: {
     level1: number;
     level2: number;
     level3: number;
     level4: number;
+  };
+  categoryId?: string;
+  category?: {
+    _id: string;
+    name: string;
+    description?: string;
   };
 }
 

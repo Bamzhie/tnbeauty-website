@@ -70,10 +70,18 @@ export default function BookAppointmentModal({ isOpen, onClose }: Props) {
 
   const handleServiceSelect = (service: Service) => {
     setSelectedService(service);
-    // Default to level1
-    setSelectedLevel('level1');
-    setSelectedPrice(service.prices['level1']);
-    setStep(1);
+    
+    if (service.hasLevels !== false && service.prices) {
+      // Default to level1 if levels exist
+      setSelectedLevel('level1');
+      setSelectedPrice(service.prices['level1']);
+      setStep(1);
+    } else {
+      // No levels, go straight to date selection
+      setSelectedLevel(null); // Or 'standard' if backend requires it
+      setSelectedPrice(service.price || 0);
+      setStep(2);
+    }
   };
 
   const handleLevelSelect = (level: string, price: number) => {
@@ -100,7 +108,10 @@ export default function BookAppointmentModal({ isOpen, onClose }: Props) {
   const handleSubmit = async () => {
     // Validate based on contact method
     const isContactValid = contactMethod === 'email' ? clientEmail : clientPhone;
-    if (!selectedService || !selectedDate || !clientName || !isContactValid || !selectedLevel) return;
+    if (!selectedService || !selectedDate || !clientName || !isContactValid) return;
+    
+    // Check level only if service has levels
+    if (selectedService.hasLevels !== false && !selectedLevel) return;
 
     setSubmitting(true);
     try {
@@ -113,7 +124,7 @@ export default function BookAppointmentModal({ isOpen, onClose }: Props) {
         email: contactMethod === 'email' ? clientEmail : undefined,
         phone: contactMethod === 'phone' ? clientPhone : undefined,
         service: selectedService.name,
-        level: selectedLevel,
+        level: selectedLevel || undefined, // Send undefined if no level
         date: formattedDate,
         time: selectedTime || undefined,
       };
@@ -138,6 +149,17 @@ export default function BookAppointmentModal({ isOpen, onClose }: Props) {
 
   const goBack = () => {
     if (step === 0) return;
+    
+    if (step === 2) {
+      // If going back from Date selection
+      if (selectedService?.hasLevels !== false) {
+        setStep(1); // Go to Level selection
+      } else {
+        setStep(0); // Go to Service selection
+      }
+      return;
+    }
+
     if (step === 4 && selectedDate?.type === 'full-day') {
       setStep(2); // Go back to Date from Contact if full-day
     } else {
@@ -145,23 +167,54 @@ export default function BookAppointmentModal({ isOpen, onClose }: Props) {
     }
   };
 
-  // Render Steps
+  // Group services by category
+  const groupedServices = services.reduce((acc, service) => {
+    const categoryId = service.categoryId || 'uncategorized';
+    if (!acc[categoryId]) {
+      acc[categoryId] = {
+        category: service.category,
+        services: []
+      };
+    }
+    acc[categoryId].services.push(service);
+    return acc;
+  }, {} as Record<string, { category: Service['category'], services: Service[] }>);
+
+  // Sort categories by creation date (using _id or createdAt if available, assuming _id is roughly chronological or just use default order)
+  // Since we removed displayOrder, we rely on the backend sort or just insertion order.
+  // The backend returns them in some order. Let's assume the array order is fine.
+
   const renderStepContent = () => {
     switch (step) {
       case 0: // Service Selection
         return (
-          <div className="space-y-3">
-            <h3 className="text-lg font-medium text-white mb-4">Select a Service</h3>
-            {Array.isArray(services) && services.length > 0 ? (
-              services.map((service) => (
-                <button
-                  key={service.name}
-                  onClick={() => handleServiceSelect(service)}
-                  className="w-full p-4 bg-[#4A3728] border border-[#E8B4A8]/30 rounded-xl flex justify-between items-center hover:bg-[#E8B4A8]/10 transition text-left"
-                >
-                  <span className="font-medium text-white">{service.name}</span>
-                  <span className="text-[#E8B4A8]">From £{service.prices.level1.toLocaleString()}</span>
-                </button>
+          <div className="flex flex-col gap-4">
+            <h3 className="text-lg font-medium text-white mb-2">Select a Service</h3>
+            {Object.values(groupedServices).length > 0 ? (
+              Object.values(groupedServices)
+                .sort((a, b) => (a.category?.name || 'Uncategorized').localeCompare(b.category?.name || 'Uncategorized'))
+                .map((group, index) => (
+                <div key={group.category?._id || 'uncategorized'} className="contents">
+                  {group.category && (
+                    <h4 className={`text-[#E8B4A8] font-medium border-b border-[#E8B4A8]/20 pb-2 ${index > 0 ? 'mt-4' : ''}`}>
+                      {group.category.name}
+                    </h4>
+                  )}
+                  {group.services.map((service) => (
+                    <button
+                      key={service.name}
+                      onClick={() => handleServiceSelect(service)}
+                      className="w-full p-4 bg-[#4A3728] border border-[#E8B4A8]/30 rounded-xl flex justify-between items-center hover:bg-[#E8B4A8]/10 transition text-left"
+                    >
+                      <span className="font-medium text-white">{service.name}</span>
+                      <span className="text-[#E8B4A8]">
+                        {service.hasLevels !== false && service.prices
+                          ? `From £${service.prices.level1.toLocaleString()}`
+                          : `£${(service.price || 0).toLocaleString()}`}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               ))
             ) : (
               <div className="text-center text-white/50 py-8">No services available.</div>
@@ -170,11 +223,11 @@ export default function BookAppointmentModal({ isOpen, onClose }: Props) {
         );
 
       case 1: // Level Selection
-        if (!selectedService) return null;
+        if (!selectedService || selectedService.hasLevels === false) return null;
         
         // Default to level1 if not set
         const currentLevel = selectedLevel || 'level1';
-        const currentPrice = selectedService.prices[currentLevel as keyof typeof selectedService.prices];
+        const currentPrice = selectedService.prices?.[currentLevel as keyof typeof selectedService.prices] || 0;
 
         return (
           <div className="space-y-6">
@@ -187,13 +240,13 @@ export default function BookAppointmentModal({ isOpen, onClose }: Props) {
                 value={currentLevel}
                 onChange={(e) => {
                   const newLevel = e.target.value;
-                  const newPrice = selectedService.prices[newLevel as keyof typeof selectedService.prices];
+                  const newPrice = selectedService.prices?.[newLevel as keyof typeof selectedService.prices] || 0;
                   setSelectedLevel(newLevel);
                   setSelectedPrice(newPrice);
                 }}
                 className="w-full p-3 bg-[#4A3728] border border-[#E8B4A8]/30 rounded-xl text-white focus:border-[#E8B4A8] outline-none appearance-none"
               >
-                {Object.entries(selectedService.prices).map(([level, price]) => (
+                {selectedService.prices && Object.entries(selectedService.prices).map(([level, price]) => (
                   <option key={level} value={level} className="bg-[#1a120b]">
                     {level.toUpperCase()} - £{price.toLocaleString()}
                   </option>
@@ -257,7 +310,7 @@ export default function BookAppointmentModal({ isOpen, onClose }: Props) {
             <button
               onClick={() => {
                 // Ensure level/price are set before proceeding
-                if (!selectedLevel) {
+                if (!selectedLevel && selectedService.prices) {
                    setSelectedLevel('level1');
                    setSelectedPrice(selectedService.prices['level1']);
                 }
@@ -303,7 +356,7 @@ export default function BookAppointmentModal({ isOpen, onClose }: Props) {
                 <button
                   key={time}
                   onClick={() => handleTimeSelect(time)}
-                  className="p-3 border rounded-xl text-center transition bg-[#4A3728] border-[#E8B4A8]/30 text-white hover:bg-[#E8B4A8]/10"
+                  className="p-3 bg-[#4A3728] border border-[#E8B4A8]/30 rounded-xl hover:bg-[#E8B4A8]/10 transition text-center font-medium text-white"
                 >
                   {time}
                 </button>
@@ -317,26 +370,37 @@ export default function BookAppointmentModal({ isOpen, onClose }: Props) {
           <div className="space-y-4">
             <h3 className="text-lg font-medium text-white mb-4">Your Details</h3>
             
-            <div className="bg-[#4A3728]/50 p-4 rounded-xl border border-[#E8B4A8]/20 mb-4 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-white/60">Service:</span>
-                <span className="text-white font-medium">{selectedService?.name} ({selectedLevel})</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-white/60">Date:</span>
-                <span className="text-white font-medium">{selectedDate?.displayDate}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-white/60">Time:</span>
-                <span className="text-white font-medium">{selectedTime}</span>
-              </div>
-              <div className="flex justify-between text-sm pt-2 border-t border-white/10">
-                <span className="text-white/60">Price:</span>
-                <span className="text-[#E8B4A8] font-bold">£{selectedPrice?.toLocaleString()}</span>
+            {/* Booking Summary */}
+            <div className="bg-[#4A3728]/50 p-4 rounded-xl border border-[#E8B4A8]/20 mb-6">
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-white/70">Service:</span>
+                  <span className="text-white font-medium">{selectedService?.name}</span>
+                </div>
+                {selectedLevel && (
+                  <div className="flex justify-between">
+                    <span className="text-white/70">Level:</span>
+                    <span className="text-white font-medium">{selectedLevel.toUpperCase()}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-white/70">Date:</span>
+                  <span className="text-white font-medium">{selectedDate?.displayDate}</span>
+                </div>
+                {selectedTime && (
+                  <div className="flex justify-between">
+                    <span className="text-white/70">Time:</span>
+                    <span className="text-white font-medium">{selectedTime}</span>
+                  </div>
+                )}
+                <div className="pt-2 border-t border-[#E8B4A8]/20 flex justify-between text-[#E8B4A8] font-bold">
+                  <span>Total:</span>
+                  <span>£{selectedPrice?.toLocaleString()}</span>
+                </div>
               </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div>
                 <label className="block text-sm text-white/80 mb-1">Full Name</label>
                 <input
@@ -347,82 +411,119 @@ export default function BookAppointmentModal({ isOpen, onClose }: Props) {
                   placeholder="Enter your name"
                 />
               </div>
+
               <div>
-                <label className="block text-sm text-white/80 mb-2">Contact Method</label>
-                <div className="flex gap-4 mb-4">
+                <label className="block text-sm text-white/80 mb-1">Preferred Contact Method</label>
+                <div className="flex gap-4 mb-2">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="radio"
-                      name="contactMethod"
-                      value="email"
                       checked={contactMethod === 'email'}
                       onChange={() => setContactMethod('email')}
-                      className="accent-[#E8B4A8] w-4 h-4"
+                      className="text-[#E8B4A8] focus:ring-[#E8B4A8]"
                     />
                     <span className="text-white">Email</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="radio"
-                      name="contactMethod"
-                      value="phone"
                       checked={contactMethod === 'phone'}
                       onChange={() => setContactMethod('phone')}
-                      className="accent-[#E8B4A8] w-4 h-4"
+                      className="text-[#E8B4A8] focus:ring-[#E8B4A8]"
                     />
-                    <span className="text-white">Phone Number</span>
+                    <span className="text-white">Phone (WhatsApp)</span>
                   </label>
                 </div>
-
-                {contactMethod === 'email' ? (
-                  <div>
-                    <label className="block text-sm text-white/80 mb-1">Email Address</label>
-                    <input
-                      type="email"
-                      value={clientEmail}
-                      onChange={(e) => setClientEmail(e.target.value)}
-                      className="w-full p-3 bg-[#4A3728] border border-[#E8B4A8]/30 rounded-xl text-white focus:border-[#E8B4A8] outline-none"
-                      placeholder="example@email.com"
-                    />
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block text-sm text-white/80 mb-1">Phone Number</label>
-                    <input
-                      type="tel"
-                      value={clientPhone}
-                      onChange={(e) => setClientPhone(e.target.value)}
-                      className="w-full p-3 bg-[#4A3728] border border-[#E8B4A8]/30 rounded-xl text-white focus:border-[#E8B4A8] outline-none"
-                      placeholder="+44 7123 456789"
-                    />
-                  </div>
-                )}
               </div>
-            </div>
 
-            <button
-              onClick={handleSubmit}
-              disabled={!clientName || (contactMethod === 'email' ? !clientEmail : !clientPhone) || submitting}
-              className="w-full py-3 bg-[#E8B4A8] hover:bg-[#D9A498] text-black font-bold rounded-xl transition shadow-lg mt-4 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Confirm Booking'}
-            </button>
+              {contactMethod === 'email' ? (
+                <div>
+                  <label className="block text-sm text-white/80 mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    value={clientEmail}
+                    onChange={(e) => setClientEmail(e.target.value)}
+                    className="w-full p-3 bg-[#4A3728] border border-[#E8B4A8]/30 rounded-xl text-white focus:border-[#E8B4A8] outline-none"
+                    placeholder="Enter your email"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm text-white/80 mb-1">Phone Number</label>
+                  <input
+                    type="tel"
+                    value={clientPhone}
+                    onChange={(e) => setClientPhone(e.target.value)}
+                    className="w-full p-3 bg-[#4A3728] border border-[#E8B4A8]/30 rounded-xl text-white focus:border-[#E8B4A8] outline-none"
+                    placeholder="Enter your phone number"
+                  />
+                </div>
+              )}
+              
+              {/* Custom Design Upload (If no levels, show here) */}
+              {selectedService?.hasLevels === false && (
+                 <div>
+                  <label className="block text-sm text-white/80 mb-1">Custom Design (Optional)</label>
+                  <div className="relative">
+                    <p className="text-xs text-[#E8B4A8] mb-2">Max file size: 2MB</p>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (file.size > 2 * 1024 * 1024) {
+                            alert('File size exceeds 2MB limit');
+                            e.target.value = ''; // Reset input
+                            setCustomDesignImage(null);
+                          } else {
+                            setCustomDesignImage(file);
+                          }
+                        } else {
+                          setCustomDesignImage(null);
+                        }
+                      }}
+                      className="w-full p-3 bg-[#4A3728] border border-[#E8B4A8]/30 rounded-xl text-white focus:border-[#E8B4A8] outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[#E8B4A8] file:text-black hover:file:bg-[#D9A498]"
+                    />
+                  </div>
+                  <p className="text-xs text-white/50 mt-1">Upload an image of the design you want.</p>
+                </div>
+              )}
+
+              <button
+                onClick={handleSubmit}
+                disabled={submitting || !clientName || (contactMethod === 'email' ? !clientEmail : !clientPhone)}
+                className="w-full py-3 bg-[#E8B4A8] hover:bg-[#D9A498] disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold rounded-xl transition shadow-lg mt-6 flex items-center justify-center gap-2"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  'Confirm Booking'
+                )}
+              </button>
+            </div>
           </div>
         );
 
       case 5: // Success
         return (
           <div className="text-center py-8 space-y-4">
-            <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto">
-              <CheckCircle className="w-8 h-8 text-green-500" />
+            <div className="w-16 h-16 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-8 h-8" />
             </div>
             <h3 className="text-2xl font-bold text-white">Booking Confirmed!</h3>
             <p className="text-white/70">
-              Thank you, {clientName}. Your appointment for {selectedService?.name} on {selectedDate?.displayDate} has been booked.
+              Thank you, {clientName}. Your appointment for {selectedService?.name} on {selectedDate?.displayDate} has been requested.
+            </p>
+            <p className="text-white/70 text-sm">
+              We will review your request and send a confirmation shortly.
             </p>
             <button
               onClick={onClose}
-              className="px-6 py-2 bg-[#E8B4A8] text-black rounded-xl font-medium hover:bg-[#D9A498] transition mt-4"
+              className="px-8 py-3 bg-[#E8B4A8] hover:bg-[#D9A498] text-black font-bold rounded-xl transition shadow-lg mt-4"
             >
               Close
             </button>
@@ -434,132 +535,102 @@ export default function BookAppointmentModal({ isOpen, onClose }: Props) {
     }
   };
 
+  if (!isOpen) return null;
+
   return (
     <AnimatePresence>
-      {isOpen && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          className="bg-[#2A1E16] w-full max-w-2xl rounded-2xl shadow-2xl border border-[#E8B4A8]/20 flex flex-col max-h-[90vh] overflow-hidden"
         >
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
-            className="relative w-full max-w-md bg-[#1a120b] rounded-3xl shadow-2xl overflow-hidden border border-[#E8B4A8]/30 flex flex-col max-h-[90vh]"
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between p-5 border-b border-[#E8B4A8]/20 bg-[#4A3728]/20">
-              <div className="flex items-center gap-3">
-                {step > 0 && step < 5 && (
-                  <button onClick={goBack} className="p-1 hover:bg-white/10 rounded-full transition">
-                    <ChevronLeft className="w-5 h-5 text-white" />
-                  </button>
-                )}
-                <h2 className="text-xl font-bold text-white">
-                  {step === 5 ? 'Success' : 'Book Appointment'}
-                </h2>
-              </div>
-              <button onClick={onClose} className="text-white/70 hover:text-white transition">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="p-6 overflow-y-auto custom-scrollbar">
-              {loading ? (
-                <div className="flex justify-center py-12">
-                  <Loader2 className="w-8 h-8 text-[#E8B4A8] animate-spin" />
-                </div>
-              ) : (
-                renderStepContent()
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 border-b border-[#E8B4A8]/10 bg-[#1a120b]">
+            <div className="flex items-center gap-3">
+              {step > 0 && step < 5 && (
+                <button
+                  onClick={goBack}
+                  className="p-2 rounded-full hover:bg-white/5 text-white/70 transition"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
               )}
+              <h2 className="text-xl font-semibold text-[#E8B4A8]">
+                {step === 0 && 'Book Appointment'}
+                {step === 1 && 'Select Level'}
+                {step === 2 && 'Select Date'}
+                {step === 3 && 'Select Time'}
+                {step === 4 && 'Your Details'}
+                {step === 5 && 'Confirmation'}
+              </h2>
             </div>
-          </motion.div>
-        </motion.div>
-      )}
-      {/* Lightbox */}
-      <AnimatePresence>
-        {lightboxOpen && selectedLevel && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[110] bg-black/90 flex items-center justify-center p-4"
-            onClick={() => setLightboxOpen(false)}
-          >
             <button
-              onClick={() => setLightboxOpen(false)}
-              className="absolute top-4 right-4 text-white/70 hover:text-white transition z-50"
+              onClick={onClose}
+              className="p-2 rounded-full hover:bg-white/5 text-white/70 transition"
             >
-              <X className="w-8 h-8" />
+              <X className="w-5 h-5" />
             </button>
+          </div>
 
-            <div
-              className="relative w-full max-w-4xl aspect-[4/5] sm:aspect-video flex items-center justify-center"
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+            {loading ? (
+              <div className="flex items-center justify-center h-40">
+                <Loader2 className="w-8 h-8 text-[#E8B4A8] animate-spin" />
+              </div>
+            ) : (
+              renderStepContent()
+            )}
+          </div>
+          
+          {/* Lightbox for Level Images */}
+          {lightboxOpen && selectedLevel && (
+            <div 
+              className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center"
+              onClick={() => setLightboxOpen(false)}
             >
-              {/* Previous Button */}
+              <button 
+                className="absolute top-4 right-4 text-white p-2"
+                onClick={() => setLightboxOpen(false)}
+              >
+                <X className="w-8 h-8" />
+              </button>
+              
               <button
+                className="absolute left-4 text-white p-2"
                 onClick={(e) => {
                   e.stopPropagation();
                   setLightboxIndex((prev) => (prev === 0 ? 2 : prev - 1));
                 }}
-                className="absolute left-2 sm:-left-12 p-2 bg-black/50 rounded-full text-white hover:bg-white/20 transition z-50"
               >
-                <ChevronLeft className="w-6 h-6" />
+                <ChevronLeft className="w-8 h-8" />
               </button>
-
-              {/* Image with Swipe */}
+              
               <motion.img
                 key={lightboxIndex}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
                 src={`/${selectedLevel}/img${lightboxIndex + 1}.jpg`}
-                alt={`Level example ${lightboxIndex + 1}`}
-                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
+                alt="Design Example"
+                className="max-w-[90vw] max-h-[80vh] object-contain rounded-lg"
                 onClick={(e) => e.stopPropagation()}
-                drag="x"
-                dragConstraints={{ left: 0, right: 0 }}
-                dragElastic={0.2}
-                onDragEnd={(e, { offset, velocity }) => {
-                  const swipe = offset.x;
-
-                  if (swipe < -50) {
-                    setLightboxIndex((prev) => (prev === 2 ? 0 : prev + 1));
-                  } else if (swipe > 50) {
-                    setLightboxIndex((prev) => (prev === 0 ? 2 : prev - 1));
-                  }
-                }}
               />
 
-              {/* Next Button */}
               <button
+                className="absolute right-4 text-white p-2"
                 onClick={(e) => {
                   e.stopPropagation();
                   setLightboxIndex((prev) => (prev === 2 ? 0 : prev + 1));
                 }}
-                className="absolute right-2 sm:-right-12 p-2 bg-black/50 rounded-full text-white hover:bg-white/20 transition z-50"
               >
-                <ChevronRight className="w-6 h-6" />
+                <ChevronRight className="w-8 h-8" />
               </button>
-              
-              {/* Dots Indicator */}
-              <div className="absolute -bottom-8 flex gap-2">
-                {[0, 1, 2].map((i) => (
-                  <div
-                    key={i}
-                    className={`w-2 h-2 rounded-full transition-colors ${
-                      i === lightboxIndex ? 'bg-white' : 'bg-white/30'
-                    }`}
-                  />
-                ))}
-              </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </motion.div>
+      </div>
     </AnimatePresence>
   );
 }
