@@ -48,8 +48,9 @@ export interface CreateBookingDto {
   name: string;
   phone?: string;
   email?: string;
-  service: string;
-  level: string; // level1, level2, level3, level4
+  coreServices: string[];
+  addons: string[];
+  removals: string[];
   date: string; // dd/mm/yyyy format
   time?: string;
   customDesignImage?: File;

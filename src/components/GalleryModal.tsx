@@ -11,6 +11,8 @@ interface Props {
 export default function GalleryModal({ isOpen, onClose }: Props) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [touchStart, setTouchStart] = useState(0);
+  const [touchEnd, setTouchEnd] = useState(0);
 
   const handleImageClick = (index: number) => {
     setLightboxIndex(index);
@@ -27,12 +29,31 @@ export default function GalleryModal({ isOpen, onClose }: Props) {
     setLightboxIndex((prev) => (prev === galleryImages.length - 1 ? 0 : prev + 1));
   };
 
-  const handleDragEnd = (_: any, info: any) => {
-    if (info.offset.x > 100) {
-      handlePrevious({} as React.MouseEvent);
-    } else if (info.offset.x < -100) {
+  // Touch event handlers for swipe
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > 50;
+    const isRightSwipe = distance < -50;
+    
+    if (isLeftSwipe) {
       handleNext({} as React.MouseEvent);
     }
+    if (isRightSwipe) {
+      handlePrevious({} as React.MouseEvent);
+    }
+    
+    setTouchStart(0);
+    setTouchEnd(0);
   };
 
   return (
@@ -116,10 +137,9 @@ export default function GalleryModal({ isOpen, onClose }: Props) {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.9 }}
                     onClick={(e) => e.stopPropagation()}
-                    drag="x"
-                    dragConstraints={{ left: 0, right: 0 }}
-                    dragElastic={0.2}
-                    onDragEnd={handleDragEnd}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
                   />
 
                   {/* Next Button */}

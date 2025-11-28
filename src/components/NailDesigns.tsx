@@ -17,21 +17,21 @@ export default function Gallery() {
     setLightboxOpen(true);
   };
 
-  const handlePrevious = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handlePrevious = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     setLightboxIndex((prev) => (prev === 0 ? galleryImages.length - 1 : prev - 1));
   };
 
-  const handleNext = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleNext = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     setLightboxIndex((prev) => (prev === galleryImages.length - 1 ? 0 : prev + 1));
   };
 
   const handleDragEnd = (_: any, info: any) => {
     if (info.offset.x > 100) {
-      handlePrevious({} as React.MouseEvent);
+      handlePrevious();
     } else if (info.offset.x < -100) {
-      handleNext({} as React.MouseEvent);
+      handleNext();
     }
   };
 
