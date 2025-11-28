@@ -44,12 +44,12 @@ export const nailArtLevels: NailArtLevel[] = [
     name: 'Level 1: Basic', 
     price: 10, 
     level: 1, 
-    image: '/level1/img1.jpg', // Main representative image
+    image: '/level1/img1.webp', // Main representative image
     description: 'Simple lines, dots, or single accent nail.',
     exampleImages: [
-      '/level1/img1.jpg',
-      '/level1/img2.jpg',
-      '/level1/img3.jpg'
+      '/level1/img1.webp',
+      '/level1/img2.webp',
+      '/level1/img3.webp'
     ]
   },
   { 
@@ -57,13 +57,13 @@ export const nailArtLevels: NailArtLevel[] = [
     name: 'Level 2: Advanced', 
     price: 20, 
     level: 2, 
-    image: '/level2/img1.jpg',
+    image: '/level2/img1.webp',
     description: 'French tips, swirls, or simple patterns on all nails.',
     exampleImages: [
-      '/level2/img1.jpg',
-      '/level2/img2.jpg',
-      '/level2/img3.jpg',
-      '/level2/img4.jpg'
+      '/level2/img1.webp',
+      '/level2/img2.webp',
+      '/level2/img3.webp',
+      '/level2/img4.webp'
     ]
   },
   { 
@@ -71,13 +71,13 @@ export const nailArtLevels: NailArtLevel[] = [
     name: 'Level 3: Intricate', 
     price: 25, 
     level: 3, 
-    image: '/level3/img1.jpg',
+    image: '/level3/img1.webp',
     description: 'Complex hand-painted designs, chrome, or mixed media.',
     exampleImages: [
-      '/level3/img1.jpg',
-      '/level3/img2.jpg',
-      '/level3/img3.jpg',
-      '/level3/img4.jpg'
+      '/level3/img1.webp',
+      '/level3/img2.webp',
+      '/level3/img3.webp',
+      '/level3/img4.webp'
     ]
   },
   { 
@@ -85,14 +85,14 @@ export const nailArtLevels: NailArtLevel[] = [
     name: 'Level 4: Extreme', 
     price: 35, 
     level: 4, 
-    image: '/level4/img1.jpg',
+    image: '/level4/img1.webp',
     description: '3D charms, heavy gems, or character art.',
     exampleImages: [
-      '/level4/img1.jpg',
-      '/level4/img2.jpg',
-      '/level4/img3.jpg',
-      '/level4/20251123_213705.jpg',
-      '/level4/20251123_213710.jpg'
+      '/level4/img1.webp',
+      '/level4/img2.webp',
+      '/level4/img3.webp',
+      '/level4/20251123_213705.webp',
+      '/level4/20251123_213710.webp'
     ]
   },
 ];

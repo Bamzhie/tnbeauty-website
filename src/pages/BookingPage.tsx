@@ -350,7 +350,7 @@ export default function BookingPage() {
 
   if (bookingSuccess) {
     return (
-      <div className="min-h-screen bg-[#F5E6D3] py-12 px-4 flex items-center justify-center">
+      <div className="min-h-screen bg-[#d6d3cd] py-12 px-4 flex items-center justify-center">
         <motion.div 
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -375,7 +375,7 @@ export default function BookingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F5E6D3] py-8 px-4">
+    <div className="min-h-screen bg-[#d6d3cd] py-8 px-4">
       <div className="container mx-auto max-w-3xl">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">

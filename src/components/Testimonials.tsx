@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import floatImage from '../assets/float.jpg';
-import heroImage from '../assets/hero.jpg';
+import floatImage from '../assets/float.webp';
+import heroImage from '../assets/hero.webp';
 
 export default function Testimonials() {
   const testimonials = [
@@ -79,9 +79,9 @@ export default function Testimonials() {
   };
 
   return (
-    <section className="py-12 sm:py-16 bg-[#FAF3EA] overflow-hidden">
+    <section className="py-12 sm:py-16 bg-[#d6d3cd] overflow-hidden">
       <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-[#4A3728] mb-6 sm:mb-8 md:mb-12 text-center">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-[#171716] mb-6 sm:mb-8 md:mb-12 text-center">
           What our<br />clients say
         </h2>
 

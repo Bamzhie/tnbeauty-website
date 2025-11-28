@@ -4,20 +4,15 @@ import BookNowButton from './BookNowBtn';
 
 export default function Hero() {
   return (
-    <section className="relative min-h-screen flex items-center bg-[#F5E6D3]">
-      <div className="container mx-auto md:px-6 py-12 md:py-20">
+    <section className="relative min-h-screen flex items-end md:items-center bg-[#d6d3cd]">
+      <div className="container mx-auto md:px-6 pt-12 pb-0 md:py-20">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           {/* Left Content */}
           <div className="space-y-6 px-6 md:px-0">
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-[#4A3728] leading-tight">
+            <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-[#171716] leading-tight">
               TNL Beauty
             </h1>
-            <h2 className="text-2xl md:text-3xl lg:text-4xl text-[#6B5344] font-light">
-              Expert Nails,<br />Personal Touch
-            </h2>
-            <p className="text-[#8B7355] text-lg">
-              Discover your perfect style today
-            </p>
+
 
             {/* Reusable Button */}
             <BookNowButton />

@@ -17,8 +17,8 @@
 @layer base {
   body {
     font-family: var(--font-sans);
-    background-color: rgb(249 250 251);
-    color: var(--color-primary);
+    background-color: #d6d3cd;
+    color: #171716;
   }
   
   h1, h2, h3, h4, h5, h6 {
