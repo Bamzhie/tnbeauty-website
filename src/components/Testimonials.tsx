@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import floatImage from '../assets/float.webp';
-import heroImage from '../assets/hero.webp';
+import { useState, useEffect } from "react";
+import floatImage from "../assets/float.webp";
+import heroImage from "../assets/hero.webp";
 
 export default function Testimonials() {
   const testimonials = [
@@ -17,7 +17,8 @@ export default function Testimonials() {
       image: heroImage,
     },
     {
-      quote: "I love the attention to detail. My nails look flawless every time!",
+      quote:
+        "I love the attention to detail. My nails look flawless every time!",
       author: "Amaka",
       initial: "A",
       image: floatImage,
@@ -33,10 +34,10 @@ export default function Testimonials() {
     const checkMobile = () => {
       setIsMobile(window.innerWidth <= 768);
     };
-    
+
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   const nextSlide = () => {
@@ -44,7 +45,9 @@ export default function Testimonials() {
   };
 
   const prevSlide = () => {
-    setCurrentIndex((prev) => (prev - 1 + testimonials.length) % testimonials.length);
+    setCurrentIndex(
+      (prev) => (prev - 1 + testimonials.length) % testimonials.length
+    );
   };
 
   const goToSlide = (index: number) => {
@@ -62,55 +65,59 @@ export default function Testimonials() {
 
   const handleTouchEnd = () => {
     if (!touchStart || !touchEnd) return;
-    
+
     const distance = touchStart - touchEnd;
     const isLeftSwipe = distance > 50;
     const isRightSwipe = distance < -50;
-    
+
     if (isLeftSwipe) {
       nextSlide();
     }
     if (isRightSwipe) {
       prevSlide();
     }
-    
+
     setTouchStart(0);
     setTouchEnd(0);
   };
 
   return (
-    <section className="py-12 sm:py-16 bg-[#d6d3cd] overflow-hidden">
+    <section className="py-12 sm:py-16 overflow-hidden">
       <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-[#171716] mb-6 sm:mb-8 md:mb-12 text-center">
-          What our<br />clients say
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-[#4A3728] mb-6 sm:mb-8 md:mb-12 text-center">
+          What our
+          <br />
+          clients say
         </h2>
 
         <p className="text-[#6B5344] text-sm sm:text-base md:text-lg leading-relaxed text-center max-w-3xl mx-auto mb-8 sm:mb-10 md:mb-12 px-4">
-          At TNL Beauty, we create experiences that exceed your expectations. Our expert technicians bring artistry and precision to every appointment.
+          At TNL Beauty, we create experiences that exceed your expectations.
+          Our expert technicians bring artistry and precision to every
+          appointment.
         </p>
 
         {/* Mobile/Tablet Carousel (up to 768px) */}
         {isMobile ? (
           <div className="relative max-w-sm sm:max-w-md mx-auto">
             {/* Carousel Container with touch support */}
-            <div 
+            <div
               className="overflow-hidden cursor-grab active:cursor-grabbing"
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
             >
-              <div 
+              <div
                 className="flex transition-transform duration-500 ease-out"
                 style={{ transform: `translateX(-${currentIndex * 100}%)` }}
               >
                 {testimonials.map((testimonial, idx) => (
-                  <div
-                    key={idx}
-                    className="w-full flex-shrink-0 px-2"
-                  >
+                  <div key={idx} className="w-full flex-shrink-0 px-2">
                     <div className="bg-[#E8D5C4] rounded-2xl p-5 sm:p-6 shadow-lg mx-auto select-none">
                       {/* Image at the top - reduced height */}
-                      <div className="rounded-xl overflow-hidden shadow-md w-full mb-4 sm:mb-5" style={{ height: '200px' }}>
+                      <div
+                        className="rounded-xl overflow-hidden shadow-md w-full mb-4 sm:mb-5"
+                        style={{ height: "200px" }}
+                      >
                         <img
                           src={testimonial.image}
                           alt={`Nail design by ${testimonial.author}`}
@@ -129,7 +136,9 @@ export default function Testimonials() {
                           <p className="text-[#4A3728] font-medium mb-1.5 sm:mb-2 leading-relaxed text-sm sm:text-base">
                             "{testimonial.quote}"
                           </p>
-                          <p className="text-[#8B7355] text-xs sm:text-sm">- {testimonial.author}</p>
+                          <p className="text-[#8B7355] text-xs sm:text-sm">
+                            - {testimonial.author}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -145,9 +154,9 @@ export default function Testimonials() {
                   key={idx}
                   onClick={() => goToSlide(idx)}
                   className={`w-2 h-2 rounded-full transition-all ${
-                    idx === currentIndex 
-                      ? 'bg-[#4A3728] w-6' 
-                      : 'bg-[#4A3728]/30'
+                    idx === currentIndex
+                      ? "bg-[#4A3728] w-6"
+                      : "bg-[#4A3728]/30"
                   }`}
                   aria-label={`Go to testimonial ${idx + 1}`}
                 />
@@ -172,7 +181,9 @@ export default function Testimonials() {
                     <p className="text-[#4A3728] font-medium mb-2 leading-relaxed text-base">
                       "{testimonial.quote}"
                     </p>
-                    <p className="text-[#8B7355] text-sm">- {testimonial.author}</p>
+                    <p className="text-[#8B7355] text-sm">
+                      - {testimonial.author}
+                    </p>
                   </div>
                 </div>
 

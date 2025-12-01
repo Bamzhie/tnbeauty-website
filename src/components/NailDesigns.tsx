@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { galleryImages } from '../data/images';
-import GalleryModal from './GalleryModal';
-import { ArrowRight, X, ChevronLeft, ChevronRight } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState } from "react";
+import { galleryImages } from "../data/images";
+import GalleryModal from "./GalleryModal";
+import { ArrowRight, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function Gallery() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -19,12 +19,16 @@ export default function Gallery() {
 
   const handlePrevious = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    setLightboxIndex((prev) => (prev === 0 ? galleryImages.length - 1 : prev - 1));
+    setLightboxIndex((prev) =>
+      prev === 0 ? galleryImages.length - 1 : prev - 1
+    );
   };
 
   const handleNext = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    setLightboxIndex((prev) => (prev === galleryImages.length - 1 ? 0 : prev + 1));
+    setLightboxIndex((prev) =>
+      prev === galleryImages.length - 1 ? 0 : prev + 1
+    );
   };
 
   const handleDragEnd = (_: any, info: any) => {
@@ -36,36 +40,35 @@ export default function Gallery() {
   };
 
   return (
-    <section className="py-12 sm:py-16 bg-[#d6d3cd] overflow-hidden">
+    <section id="gallery" className="py-12 sm:py-16 overflow-hidden">
       <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-8 sm:mb-12 text-[#171716]">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-8 sm:mb-12 text-[#4A3728]">
           Gallery
         </h2>
-        
+
         {/* Mobile: Horizontal Scroll | Desktop: Grid */}
         <div className="flex md:grid md:grid-cols-3 gap-4 sm:gap-6 md:gap-8 max-w-5xl mx-auto overflow-x-auto snap-x snap-mandatory pb-4 -mx-4 px-4 sm:-mx-6 sm:px-6 md:mx-auto md:px-0 custom-scrollbar">
           {previewImages.map((image, idx) => (
-            <div 
-              key={idx} 
+            <div
+              key={idx}
               className="group cursor-pointer min-w-[240px] max-w-[280px] sm:min-w-[280px] sm:max-w-[320px] md:min-w-0 md:max-w-none snap-center flex-shrink-0"
               onClick={() => handlePreviewClick(idx)}
             >
               {/* Fixed image container */}
               <div className="rounded-2xl sm:rounded-3xl overflow-hidden shadow-lg mb-3 sm:mb-4 aspect-square border-2 sm:border-4 border-white w-full">
-                <img 
-                  src={image.src} 
+                <img
+                  src={image.src}
                   alt={image.alt}
                   className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                 />
               </div>
-
             </div>
           ))}
         </div>
 
         {/* See More Button */}
         <div className="mt-6 sm:mt-8 text-center px-4">
-          <button 
+          <button
             onClick={() => setIsModalOpen(true)}
             className="inline-flex items-center gap-2 px-6 sm:px-8 py-2.5 sm:py-3 bg-[#4A3728] text-[#E8B4A8] rounded-full font-medium hover:bg-[#3A2820] transition shadow-lg text-sm sm:text-base"
           >
@@ -73,7 +76,10 @@ export default function Gallery() {
           </button>
         </div>
 
-        <GalleryModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+        <GalleryModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+        />
 
         {/* Lightbox for preview images */}
         <AnimatePresence>
