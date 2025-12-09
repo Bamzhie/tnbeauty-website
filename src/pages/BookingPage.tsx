@@ -44,9 +44,9 @@ export default function BookingPage() {
 
   // --- State Management ---
 
-  // Accordion & Visibility State
-  const [expandedSection, setExpandedSection] = useState<number>(0); // 0: Date/Time, 1: Treatments, 2: Contact
-  const [visibleSections, setVisibleSections] = useState<number[]>([0]); // Only first section visible initially
+  // Visibility State
+  // 0: Date/Time (Always visible), 1: Treatments, 2: Contact
+  const [visibleSections, setVisibleSections] = useState<number[]>([0]);
   const [completedSections, setCompletedSections] = useState<number[]>([]);
   const [processingStep, setProcessingStep] = useState<number | null>(null); // Track which step is "loading"
 
@@ -113,6 +113,7 @@ export default function BookingPage() {
 
   // File Upload State (not persisted in localStorage)
   const [inspoImage, setInspoImage] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
 
   // Calendar View State
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -255,7 +256,14 @@ export default function BookingPage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setInspoImage(e.target.files[0]);
+      const file = e.target.files[0];
+      if (file.size > 2 * 1024 * 1024) {
+        setFileError("Image size must be less than 2MB");
+        setInspoImage(null);
+      } else {
+        setFileError(null);
+        setInspoImage(file);
+      }
     }
   };
 
@@ -273,22 +281,16 @@ export default function BookingPage() {
         setVisibleSections([...visibleSections, nextSection]);
       }
 
-      setExpandedSection(nextSection);
       setProcessingStep(null);
+
+      // Scroll to next section
+      setTimeout(() => {
+        const element = document.getElementById(`section-${nextSection}`);
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 100);
     }, 600);
-  };
-
-  const toggleSection = (section: number) => {
-    // Only allow toggling if section is visible
-    if (!visibleSections.includes(section)) return;
-
-    if (
-      section < expandedSection ||
-      completedSections.includes(section - 1) ||
-      section === 0
-    ) {
-      setExpandedSection(expandedSection === section ? -1 : section);
-    }
   };
 
   const handleSubmit = async () => {
@@ -527,113 +529,389 @@ export default function BookingPage() {
           <div className="w-16"></div> {/* Spacer for centering */}
         </div>
 
-        {/* Accordion Container */}
-        <div className="space-y-4">
+        {/* Main Card Container */}
+        <div className="bg-white rounded-2xl shadow-md overflow-hidden">
           {/* Section 1: Date & Time */}
-          <div className="bg-white rounded-2xl shadow-md overflow-hidden">
-            <button
-              onClick={() => toggleSection(0)}
-              className={`w-full p-6 flex items-center justify-between transition ${
-                expandedSection === 0
-                  ? "bg-[#4A3728] text-white"
-                  : "bg-white text-[#4A3728]"
-              }`}
-            >
-              <div className="flex items-center gap-4">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
-                    expandedSection === 0
-                      ? "bg-white text-[#4A3728]"
-                      : "bg-[#E8D5C4] text-[#4A3728]"
-                  }`}
-                >
-                  1
-                </div>
-                <span className="text-xl font-bold">Date & Time</span>
+          <div id="section-0" className="p-6 md:p-8">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-8 h-8 rounded-full bg-[#4A3728] text-white flex items-center justify-center font-bold">
+                1
               </div>
-              {expandedSection === 0 ? <ChevronUp /> : <ChevronDown />}
-            </button>
+              <h2 className="text-xl font-bold text-[#4A3728]">Date & Time</h2>
+            </div>
 
-            <AnimatePresence>
-              {expandedSection === 0 && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="border-t border-gray-100"
+            <div className="space-y-6">
+              {/* Calendar Header */}
+              <div className="flex items-center justify-between mb-4">
+                <button
+                  onClick={prevMonth}
+                  className="p-2 hover:bg-gray-100 rounded-full"
                 >
-                  <div className="p-6 space-y-6">
-                    {/* Calendar Header */}
-                    <div className="flex items-center justify-between mb-4">
-                      <button
-                        onClick={prevMonth}
-                        className="p-2 hover:bg-gray-100 rounded-full"
-                      >
-                        <ChevronLeft className="w-5 h-5" />
-                      </button>
-                      <h3 className="font-bold text-[#4A3728] text-lg">
-                        {currentMonth.toLocaleDateString("en-US", {
-                          month: "long",
-                          year: "numeric",
-                        })}
-                      </h3>
-                      <button
-                        onClick={nextMonth}
-                        className="p-2 hover:bg-gray-100 rounded-full"
-                      >
-                        <ChevronRight className="w-5 h-5" />
-                      </button>
-                    </div>
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <h3 className="font-bold text-[#4A3728] text-lg">
+                  {currentMonth.toLocaleDateString("en-US", {
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </h3>
+                <button
+                  onClick={nextMonth}
+                  className="p-2 hover:bg-gray-100 rounded-full"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
 
-                    {/* Calendar Grid */}
-                    <div className="grid grid-cols-7 gap-2 mb-6">
-                      {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(
-                        (day) => (
-                          <div
-                            key={day}
-                            className="text-center text-xs font-bold text-[#8B7355] uppercase py-2"
-                          >
-                            {day}
-                          </div>
-                        )
-                      )}
-                      {renderCalendar()}
+              {/* Calendar Grid */}
+              <div className="grid grid-cols-7 gap-2 mb-6">
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(
+                  (day) => (
+                    <div
+                      key={day}
+                      className="text-center text-xs font-bold text-[#8B7355] uppercase py-2"
+                    >
+                      {day}
                     </div>
+                  )
+                )}
+                {renderCalendar()}
+              </div>
 
-                    {/* Time Selection */}
-                    {selectedDateStr && (
-                      <div className="space-y-2">
-                        <label className="block text-sm font-bold text-[#4A3728]">
-                          Select Time
-                        </label>
-                        <select
-                          value={selectedTime || ""}
-                          onChange={(e) => setSelectedTime(e.target.value)}
-                          className="w-full p-3 rounded-xl border-2 border-[#E8D5C4] focus:border-[#4A3728] outline-none bg-white text-[#4A3728]"
-                        >
-                          <option value="">Choose a time...</option>
-                          {availableTimeSlots.map((time) => (
-                            <option key={time} value={time}>
-                              {time}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+              {/* Time Selection */}
+              {selectedDateStr && (
+                <div className="space-y-2">
+                  <label className="block text-sm font-bold text-[#4A3728]">
+                    Select Time
+                  </label>
+                  <select
+                    value={selectedTime || ""}
+                    onChange={(e) => setSelectedTime(e.target.value)}
+                    className="w-full p-3 rounded-xl border-2 border-[#E8D5C4] focus:border-[#4A3728] outline-none bg-white text-[#4A3728]"
+                  >
+                    <option value="">Choose a time...</option>
+                    {availableTimeSlots.map((time) => (
+                      <option key={time} value={time}>
+                        {time}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Next Button for Section 1 */}
+              {!completedSections.includes(0) && (
+                <div className="pt-4">
+                  <button
+                    onClick={() => handleNext(0)}
+                    disabled={
+                      !selectedDateStr || !selectedTime || processingStep === 0
+                    }
+                    className="w-full py-4 bg-[#4A3728] text-white font-bold rounded-xl hover:bg-[#3A2B20] disabled:opacity-50 disabled:cursor-not-allowed transition shadow-lg flex items-center justify-center gap-2"
+                  >
+                    {processingStep === 0 ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      "Next"
                     )}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
 
-                    {/* Cumulative Summary */}
-                    {renderSummary(true, false)}
+          {/* Section 2: Treatments */}
+          {visibleSections.includes(1) && (
+            <>
+              <div className="border-t border-gray-100 mx-6 md:mx-8"></div>
+              <div id="section-1" className="p-6 md:p-8">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-8 h-8 rounded-full bg-[#4A3728] text-white flex items-center justify-center font-bold">
+                    2
+                  </div>
+                  <h2 className="text-xl font-bold text-[#4A3728]">
+                    Treatments
+                  </h2>
+                </div>
 
+                <div className="space-y-8">
+                  {/* Core Services Dropdown */}
+                  <div>
+                    <label className="block text-sm font-bold text-[#4A3728] mb-2">
+                      Core Services
+                    </label>
+                    <select
+                      className="w-full p-3 rounded-xl border-2 border-[#E8D5C4] focus:border-[#4A3728] outline-none bg-white text-[#4A3728]"
+                      onChange={(e) => {
+                        handleAddService("core", e.target.value);
+                        e.target.value = "";
+                      }}
+                    >
+                      <option value="">Select a service...</option>
+                      {coreServices.map((s) => (
+                        <option
+                          key={s.id}
+                          value={s.id}
+                          disabled={selectedCoreServices.includes(s.id)}
+                        >
+                          {s.name} (£{s.price})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Nail Art Levels - Dropdown Selection */}
+                  <div>
+                    <label className="block text-sm font-bold text-[#4A3728] mb-2">
+                      Nail Art Level (Optional)
+                    </label>
+                    <select
+                      className="w-full p-3 rounded-xl border-2 border-[#E8D5C4] focus:border-[#4A3728] outline-none bg-white text-[#4A3728]"
+                      value={selectedNailArtLevel || ""}
+                      onChange={(e) =>
+                        setSelectedNailArtLevel(e.target.value || null)
+                      }
+                    >
+                      <option value="">No Nail Art</option>
+                      {nailArtLevels.map((level) => (
+                        <option key={level.id} value={level.id}>
+                          {level.name} (£{level.price})
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Example Images for Selected Level */}
+                    <AnimatePresence>
+                      {selectedNailArtLevel && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mt-4"
+                        >
+                          <p className="text-xs font-bold text-[#8B7355] uppercase tracking-wider mb-2">
+                            Examples of{" "}
+                            {
+                              nailArtLevels.find(
+                                (l) => l.id === selectedNailArtLevel
+                              )?.name
+                            }
+                          </p>
+
+                          {/* Conditional Layout: Carousel if > 3 images, Grid if <= 3 */}
+                          {(() => {
+                            const images =
+                              nailArtLevels.find(
+                                (l) => l.id === selectedNailArtLevel
+                              )?.exampleImages || [];
+                            const isCarousel = images.length > 3;
+
+                            return (
+                              <div
+                                className={
+                                  isCarousel
+                                    ? "flex overflow-x-auto gap-2 pb-2 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-4 md:overflow-visible md:pb-0"
+                                    : "grid grid-cols-3 md:grid-cols-4 gap-2"
+                                }
+                              >
+                                {images.map((img, idx) => (
+                                  <div
+                                    key={idx}
+                                    className={`aspect-square rounded-lg overflow-hidden border border-[#E8D5C4] flex-shrink-0 ${
+                                      isCarousel
+                                        ? "w-1/3 md:w-auto snap-center"
+                                        : "w-full"
+                                    }`}
+                                  >
+                                    <img
+                                      src={img}
+                                      alt={`Example ${idx + 1}`}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
+
+                          <p className="text-xs text-[#6B5344] mt-2 italic">
+                            {
+                              nailArtLevels.find(
+                                (l) => l.id === selectedNailArtLevel
+                              )?.description
+                            }
+                          </p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Upload Inspo */}
+                    <div className="mt-4">
+                      <label className="block text-sm font-bold text-[#4A3728] mb-2">
+                        Upload Inspo (Optional)
+                      </label>
+                      <div className="flex items-center gap-4">
+                        <label className="flex items-center gap-2 px-4 py-2 border-2 border-[#E8D5C4] rounded-xl cursor-pointer hover:bg-[#FAF6F3] transition text-[#4A3728]">
+                          <Upload className="w-4 h-4" />
+                          <span className="text-sm font-medium">
+                            Choose Image
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileChange}
+                            className="hidden"
+                          />
+                        </label>
+                        {inspoImage && (
+                          <div className="flex items-center gap-2 bg-[#E8D5C4] px-3 py-1 rounded-lg">
+                            <span className="text-xs text-[#4A3728] truncate max-w-[150px]">
+                              {inspoImage.name}
+                            </span>
+                            <button
+                              onClick={() => setInspoImage(null)}
+                              className="text-[#4A3728] hover:text-red-500"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-[#8B7355] mt-1 italic">
+                        Image size must be less than 2MB
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Removals - Conditional */}
+                  <div className="pt-4 border-t border-[#E8D5C4]">
+                    <label className="flex items-center gap-2 cursor-pointer mb-4">
+                      <input
+                        type="checkbox"
+                        checked={showRemovalDropdown}
+                        onChange={(e) => {
+                          setShowRemovalDropdown(e.target.checked);
+                          if (!e.target.checked) setSelectedRemovals([]); // Clear removals if unchecked
+                        }}
+                        className="w-4 h-4 text-[#4A3728] rounded focus:ring-[#4A3728]"
+                      />
+                      <span className="text-sm font-bold text-[#4A3728]">
+                        Need a removal?
+                      </span>
+                    </label>
+
+                    <AnimatePresence>
+                      {showRemovalDropdown && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <select
+                            className="w-full p-3 rounded-xl border-2 border-[#E8D5C4] focus:border-[#4A3728] outline-none bg-white text-[#4A3728]"
+                            onChange={(e) => {
+                              handleAddService("removal", e.target.value);
+                              e.target.value = "";
+                            }}
+                          >
+                            <option value="">Select a removal...</option>
+                            {removals.map((s) => (
+                              <option
+                                key={s.id}
+                                value={s.id}
+                                disabled={selectedRemovals.includes(s.id)}
+                              >
+                                {s.name} (£{s.price})
+                              </option>
+                            ))}
+                          </select>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Selected List */}
+                  {selectedServicesList.length > 0 && (
+                    <div className="bg-[#FAF6F3] rounded-xl p-4 space-y-3">
+                      <h3 className="font-bold text-[#4A3728] text-sm uppercase tracking-wide">
+                        Selected Items
+                      </h3>
+                      {selectedServicesList.map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-[#E8D5C4]"
+                        >
+                          <div>
+                            <span className="font-medium text-[#4A3728] block">
+                              {item.name}
+                            </span>
+                            <span className="text-[#8B7355] text-sm">
+                              £{item.price}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() =>
+                              handleRemoveService(
+                                coreServices.some((s) => s.name === item.name)
+                                  ? "core"
+                                  : addOns.some((s) => s.name === item.name)
+                                  ? "addon"
+                                  : nailArtLevels.some(
+                                      (s) => s.name === item.name
+                                    )
+                                  ? "nailArt"
+                                  : "removal",
+                                [
+                                  ...coreServices,
+                                  ...addOns,
+                                  ...nailArtLevels,
+                                  ...removals,
+                                ].find((s) => s.name === item.name)?.id || ""
+                              )
+                            }
+                            className="text-red-400 hover:text-red-600 p-2"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+
+                      <div className="flex justify-between items-center pt-3 border-t border-[#E8D5C4]">
+                        <span className="font-bold text-[#4A3728] text-lg">
+                          Total Estimate
+                        </span>
+                        <span className="font-black text-[#4A3728] text-2xl">
+                          £{totalPrice}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Booking Summary with Date/Time */}
+                  {renderSummary(true, false)}
+
+                  {fileError && (
+                    <p className="text-red-500 text-sm font-bold text-center mb-2">
+                      {fileError}
+                    </p>
+                  )}
+
+                  {/* Next Button for Section 2 */}
+                  {!completedSections.includes(1) && (
                     <button
-                      onClick={() => handleNext(0)}
+                      onClick={() => handleNext(1)}
                       disabled={
-                        !selectedDateStr ||
-                        !selectedTime ||
-                        processingStep === 0
+                        selectedCoreServices.length === 0 ||
+                        processingStep === 1 ||
+                        !!fileError
                       }
                       className="w-full py-4 bg-[#4A3728] text-white font-bold rounded-xl hover:bg-[#3A2B20] disabled:opacity-50 disabled:cursor-not-allowed transition shadow-lg flex items-center justify-center gap-2"
                     >
-                      {processingStep === 0 ? (
+                      {processingStep === 1 ? (
                         <>
                           <Loader2 className="w-5 h-5 animate-spin" />
                           Processing...
@@ -642,483 +920,108 @@ export default function BookingPage() {
                         "Next"
                       )}
                     </button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Summary when collapsed */}
-            {expandedSection !== 0 && selectedDateStr && selectedTime && (
-              <div className="px-6 pb-6 pt-0">
-                <p className="text-[#6B5344] text-sm">
-                  {new Date(selectedDateStr).toLocaleDateString("en-GB", {
-                    weekday: "short",
-                    day: "numeric",
-                    month: "short",
-                  })}{" "}
-                  at {selectedTime}
-                </p>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
-
-          {/* Section 2: Treatments */}
-          {visibleSections.includes(1) && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl shadow-md overflow-hidden"
-            >
-              <button
-                onClick={() => toggleSection(1)}
-                disabled={!completedSections.includes(0)}
-                className={`w-full p-6 flex items-center justify-between transition ${
-                  expandedSection === 1
-                    ? "bg-[#4A3728] text-white"
-                    : "bg-white text-[#4A3728]"
-                } disabled:opacity-60`}
-              >
-                <div className="flex items-center gap-4">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
-                      expandedSection === 1
-                        ? "bg-white text-[#4A3728]"
-                        : "bg-[#E8D5C4] text-[#4A3728]"
-                    }`}
-                  >
-                    2
-                  </div>
-                  <span className="text-xl font-bold">Treatments</span>
-                </div>
-                {expandedSection === 1 ? <ChevronUp /> : <ChevronDown />}
-              </button>
-
-              <AnimatePresence>
-                {expandedSection === 1 && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="border-t border-gray-100"
-                  >
-                    <div className="p-6 space-y-8">
-                      {/* Core Services Dropdown */}
-                      <div>
-                        <label className="block text-sm font-bold text-[#4A3728] mb-2">
-                          Core Services
-                        </label>
-                        <select
-                          className="w-full p-3 rounded-xl border-2 border-[#E8D5C4] focus:border-[#4A3728] outline-none bg-white text-[#4A3728]"
-                          onChange={(e) => {
-                            handleAddService("core", e.target.value);
-                            e.target.value = "";
-                          }}
-                        >
-                          <option value="">Select a service...</option>
-                          {coreServices.map((s) => (
-                            <option
-                              key={s.id}
-                              value={s.id}
-                              disabled={selectedCoreServices.includes(s.id)}
-                            >
-                              {s.name} (£{s.price})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Nail Art Levels - Dropdown Selection */}
-                      <div>
-                        <label className="block text-sm font-bold text-[#4A3728] mb-2">
-                          Nail Art Level (Optional)
-                        </label>
-                        <select
-                          className="w-full p-3 rounded-xl border-2 border-[#E8D5C4] focus:border-[#4A3728] outline-none bg-white text-[#4A3728]"
-                          value={selectedNailArtLevel || ""}
-                          onChange={(e) =>
-                            setSelectedNailArtLevel(e.target.value || null)
-                          }
-                        >
-                          <option value="">No Nail Art</option>
-                          {nailArtLevels.map((level) => (
-                            <option key={level.id} value={level.id}>
-                              {level.name} (£{level.price})
-                            </option>
-                          ))}
-                        </select>
-
-                        {/* Example Images for Selected Level */}
-                        <AnimatePresence>
-                          {selectedNailArtLevel && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: "auto" }}
-                              exit={{ opacity: 0, height: 0 }}
-                              className="mt-4"
-                            >
-                              <p className="text-xs font-bold text-[#8B7355] uppercase tracking-wider mb-2">
-                                Examples of{" "}
-                                {
-                                  nailArtLevels.find(
-                                    (l) => l.id === selectedNailArtLevel
-                                  )?.name
-                                }
-                              </p>
-
-                              {/* Conditional Layout: Carousel if > 3 images, Grid if <= 3 */}
-                              {(() => {
-                                const images =
-                                  nailArtLevels.find(
-                                    (l) => l.id === selectedNailArtLevel
-                                  )?.exampleImages || [];
-                                const isCarousel = images.length > 3;
-
-                                return (
-                                  <div
-                                    className={
-                                      isCarousel
-                                        ? "flex overflow-x-auto gap-2 pb-2 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-4 md:overflow-visible md:pb-0"
-                                        : "grid grid-cols-3 md:grid-cols-4 gap-2"
-                                    }
-                                  >
-                                    {images.map((img, idx) => (
-                                      <div
-                                        key={idx}
-                                        className={`aspect-square rounded-lg overflow-hidden border border-[#E8D5C4] flex-shrink-0 ${
-                                          isCarousel
-                                            ? "w-1/3 md:w-auto snap-center"
-                                            : "w-full"
-                                        }`}
-                                      >
-                                        <img
-                                          src={img}
-                                          alt={`Example ${idx + 1}`}
-                                          className="w-full h-full object-cover"
-                                        />
-                                      </div>
-                                    ))}
-                                  </div>
-                                );
-                              })()}
-
-                              <p className="text-xs text-[#6B5344] mt-2 italic">
-                                {
-                                  nailArtLevels.find(
-                                    (l) => l.id === selectedNailArtLevel
-                                  )?.description
-                                }
-                              </p>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-
-                        {/* Upload Inspo */}
-                        <div className="mt-4">
-                          <label className="block text-sm font-bold text-[#4A3728] mb-2">
-                            Upload Inspo (Optional)
-                          </label>
-                          <div className="flex items-center gap-4">
-                            <label className="flex items-center gap-2 px-4 py-2 border-2 border-[#E8D5C4] rounded-xl cursor-pointer hover:bg-[#FAF6F3] transition text-[#4A3728]">
-                              <Upload className="w-4 h-4" />
-                              <span className="text-sm font-medium">
-                                Choose Image
-                              </span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleFileChange}
-                                className="hidden"
-                              />
-                            </label>
-                            {inspoImage && (
-                              <div className="flex items-center gap-2 bg-[#E8D5C4] px-3 py-1 rounded-lg">
-                                <span className="text-xs text-[#4A3728] truncate max-w-[150px]">
-                                  {inspoImage.name}
-                                </span>
-                                <button
-                                  onClick={() => setInspoImage(null)}
-                                  className="text-[#4A3728] hover:text-red-500"
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Removals - Conditional */}
-                      <div className="pt-4 border-t border-[#E8D5C4]">
-                        <label className="flex items-center gap-2 cursor-pointer mb-4">
-                          <input
-                            type="checkbox"
-                            checked={showRemovalDropdown}
-                            onChange={(e) => {
-                              setShowRemovalDropdown(e.target.checked);
-                              if (!e.target.checked) setSelectedRemovals([]); // Clear removals if unchecked
-                            }}
-                            className="w-4 h-4 text-[#4A3728] rounded focus:ring-[#4A3728]"
-                          />
-                          <span className="text-sm font-bold text-[#4A3728]">
-                            Need a removal?
-                          </span>
-                        </label>
-
-                        <AnimatePresence>
-                          {showRemovalDropdown && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              className="overflow-hidden"
-                            >
-                              <select
-                                className="w-full p-3 rounded-xl border-2 border-[#E8D5C4] focus:border-[#4A3728] outline-none bg-white text-[#4A3728]"
-                                onChange={(e) => {
-                                  handleAddService("removal", e.target.value);
-                                  e.target.value = "";
-                                }}
-                              >
-                                <option value="">Select a removal...</option>
-                                {removals.map((s) => (
-                                  <option
-                                    key={s.id}
-                                    value={s.id}
-                                    disabled={selectedRemovals.includes(s.id)}
-                                  >
-                                    {s.name} (£{s.price})
-                                  </option>
-                                ))}
-                              </select>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-
-                      {/* Selected List */}
-                      {selectedServicesList.length > 0 && (
-                        <div className="bg-[#FAF6F3] rounded-xl p-4 space-y-3">
-                          <h3 className="font-bold text-[#4A3728] text-sm uppercase tracking-wide">
-                            Selected Items
-                          </h3>
-                          {selectedServicesList.map((item, idx) => (
-                            <div
-                              key={idx}
-                              className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-[#E8D5C4]"
-                            >
-                              <div>
-                                <span className="font-medium text-[#4A3728] block">
-                                  {item.name}
-                                </span>
-                                <span className="text-[#8B7355] text-sm">
-                                  £{item.price}
-                                </span>
-                              </div>
-                              <button
-                                onClick={() =>
-                                  handleRemoveService(
-                                    coreServices.some(
-                                      (s) => s.name === item.name
-                                    )
-                                      ? "core"
-                                      : addOns.some((s) => s.name === item.name)
-                                      ? "addon"
-                                      : nailArtLevels.some(
-                                          (s) => s.name === item.name
-                                        )
-                                      ? "nailArt"
-                                      : "removal",
-                                    [
-                                      ...coreServices,
-                                      ...addOns,
-                                      ...nailArtLevels,
-                                      ...removals,
-                                    ].find((s) => s.name === item.name)?.id ||
-                                      ""
-                                  )
-                                }
-                                className="text-red-400 hover:text-red-600 p-2"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ))}
-
-                          <div className="flex justify-between items-center pt-3 border-t border-[#E8D5C4]">
-                            <span className="font-bold text-[#4A3728] text-lg">
-                              Total Estimate
-                            </span>
-                            <span className="font-black text-[#4A3728] text-2xl">
-                              £{totalPrice}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Booking Summary with Date/Time */}
-                      {renderSummary(true, false)}
-
-                      <button
-                        onClick={() => handleNext(1)}
-                        disabled={
-                          selectedCoreServices.length === 0 ||
-                          processingStep === 1
-                        }
-                        className="w-full py-4 bg-[#4A3728] text-white font-bold rounded-xl hover:bg-[#3A2B20] disabled:opacity-50 disabled:cursor-not-allowed transition shadow-lg flex items-center justify-center gap-2"
-                      >
-                        {processingStep === 1 ? (
-                          <>
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                            Processing...
-                          </>
-                        ) : (
-                          "Next"
-                        )}
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Summary when collapsed */}
-              {expandedSection !== 1 && selectedServicesList.length > 0 && (
-                <div className="px-6 pb-6 pt-0">
-                  <p className="text-[#6B5344] text-sm">
-                    {selectedServicesList.length} items selected •{" "}
-                    <span className="font-bold">£{totalPrice}</span>
-                  </p>
-                </div>
-              )}
-            </motion.div>
+            </>
           )}
 
           {/* Section 3: Contact Details */}
           {visibleSections.includes(2) && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl shadow-md overflow-hidden"
-            >
-              <button
-                onClick={() => toggleSection(2)}
-                disabled={!completedSections.includes(1)}
-                className={`w-full p-6 flex items-center justify-between transition ${
-                  expandedSection === 2
-                    ? "bg-[#4A3728] text-white"
-                    : "bg-white text-[#4A3728]"
-                } disabled:opacity-60`}
-              >
-                <div className="flex items-center gap-4">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
-                      expandedSection === 2
-                        ? "bg-white text-[#4A3728]"
-                        : "bg-[#E8D5C4] text-[#4A3728]"
-                    }`}
-                  >
+            <>
+              <div className="border-t border-gray-100 mx-6 md:mx-8"></div>
+              <div id="section-2" className="p-6 md:p-8">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-8 h-8 rounded-full bg-[#4A3728] text-white flex items-center justify-center font-bold">
                     3
                   </div>
-                  <span className="text-xl font-bold">Contact Details</span>
+                  <h2 className="text-xl font-bold text-[#4A3728]">
+                    Contact Details
+                  </h2>
                 </div>
-                {expandedSection === 2 ? <ChevronUp /> : <ChevronDown />}
-              </button>
 
-              <AnimatePresence>
-                {expandedSection === 2 && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="border-t border-gray-100"
-                  >
-                    <div className="p-6 space-y-6">
-                      <div>
-                        <label className="block text-sm font-bold text-[#4A3728] mb-2">
-                          Full Name
-                        </label>
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-bold text-[#4A3728] mb-2">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      value={clientName}
+                      onChange={(e) => setClientName(e.target.value)}
+                      className="w-full p-3 border-2 border-[#E8D5C4] rounded-xl focus:border-[#4A3728] outline-none"
+                      placeholder="Your Name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-[#4A3728] mb-2">
+                      Preferred Contact Method
+                    </label>
+                    <div className="flex gap-4 mb-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
                         <input
-                          type="text"
-                          value={clientName}
-                          onChange={(e) => setClientName(e.target.value)}
-                          className="w-full p-3 border-2 border-[#E8D5C4] rounded-xl focus:border-[#4A3728] outline-none"
-                          placeholder="Your Name"
+                          type="radio"
+                          checked={contactMethod === "email"}
+                          onChange={() => setContactMethod("email")}
+                          className="w-4 h-4 text-[#4A3728] focus:ring-[#4A3728]"
                         />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-bold text-[#4A3728] mb-2">
-                          Preferred Contact Method
-                        </label>
-                        <div className="flex gap-4 mb-3">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              checked={contactMethod === "email"}
-                              onChange={() => setContactMethod("email")}
-                              className="w-4 h-4 text-[#4A3728] focus:ring-[#4A3728]"
-                            />
-                            <span className="text-[#4A3728]">Email</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              checked={contactMethod === "phone"}
-                              onChange={() => setContactMethod("phone")}
-                              className="w-4 h-4 text-[#4A3728] focus:ring-[#4A3728]"
-                            />
-                            <span className="text-[#4A3728]">
-                              Phone (WhatsApp)
-                            </span>
-                          </label>
-                        </div>
-
-                        {contactMethod === "email" ? (
-                          <input
-                            type="email"
-                            value={clientEmail}
-                            onChange={(e) => setClientEmail(e.target.value)}
-                            className="w-full p-3 border-2 border-[#E8D5C4] rounded-xl focus:border-[#4A3728] outline-none"
-                            placeholder="your@email.com"
-                          />
-                        ) : (
-                          <input
-                            type="tel"
-                            value={clientPhone}
-                            onChange={(e) => setClientPhone(e.target.value)}
-                            className="w-full p-3 border-2 border-[#E8D5C4] rounded-xl focus:border-[#4A3728] outline-none"
-                            placeholder="07123 456789"
-                          />
-                        )}
-                      </div>
-
-                      {/* Full Summary including Date */}
-                      {renderSummary(true, true)}
-
-                      <button
-                        onClick={handleSubmit}
-                        disabled={
-                          submitting ||
-                          !clientName ||
-                          (contactMethod === "email"
-                            ? !clientEmail
-                            : !clientPhone)
-                        }
-                        className="w-full py-4 bg-[#4A3728] text-white font-bold rounded-xl hover:bg-[#3A2B20] disabled:opacity-50 disabled:cursor-not-allowed transition shadow-lg flex items-center justify-center gap-2"
-                      >
-                        {submitting ? (
-                          <>
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                            Processing...
-                          </>
-                        ) : (
-                          "Confirm Booking"
-                        )}
-                      </button>
+                        <span className="text-[#4A3728]">Email</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          checked={contactMethod === "phone"}
+                          onChange={() => setContactMethod("phone")}
+                          className="w-4 h-4 text-[#4A3728] focus:ring-[#4A3728]"
+                        />
+                        <span className="text-[#4A3728]">Phone (WhatsApp)</span>
+                      </label>
                     </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
+
+                    {contactMethod === "email" ? (
+                      <input
+                        type="email"
+                        value={clientEmail}
+                        onChange={(e) => setClientEmail(e.target.value)}
+                        className="w-full p-3 border-2 border-[#E8D5C4] rounded-xl focus:border-[#4A3728] outline-none"
+                        placeholder="your@email.com"
+                      />
+                    ) : (
+                      <input
+                        type="tel"
+                        value={clientPhone}
+                        onChange={(e) => setClientPhone(e.target.value)}
+                        className="w-full p-3 border-2 border-[#E8D5C4] rounded-xl focus:border-[#4A3728] outline-none"
+                        placeholder="07123 456789"
+                      />
+                    )}
+                  </div>
+
+                  {/* Full Summary including Date */}
+                  {renderSummary(true, true)}
+
+                  <button
+                    onClick={handleSubmit}
+                    disabled={
+                      submitting ||
+                      !clientName ||
+                      (contactMethod === "email" ? !clientEmail : !clientPhone)
+                    }
+                    className="w-full py-4 bg-[#4A3728] text-white font-bold rounded-xl hover:bg-[#3A2B20] disabled:opacity-50 disabled:cursor-not-allowed transition shadow-lg flex items-center justify-center gap-2"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      "Confirm Booking"
+                    )}
+                  </button>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>
