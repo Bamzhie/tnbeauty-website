@@ -115,12 +115,6 @@ export default function BookingPage() {
   const [inspoImage, setInspoImage] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
 
-  // Contact Field Validation State
-  const [nameTouched, setNameTouched] = useState(false);
-  const [emailTouched, setEmailTouched] = useState(false);
-  const [phoneTouched, setPhoneTouched] = useState(false);
-  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
-
   // Calendar View State
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -239,37 +233,6 @@ export default function BookingPage() {
     }
   }, [availableTimeSlots, selectedTime]);
 
-  // --- Validation ---
-
-  const validateName = (value: string): string | null => {
-    if (!value.trim()) return "Name is required";
-    if (value.trim().length < 2) return "Name must be at least 2 characters";
-    return null;
-  };
-
-  const validateEmail = (value: string): string | null => {
-    if (!value.trim()) return "Email is required";
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(value.trim())) return "Enter a valid email address";
-    return null;
-  };
-
-  const validatePhone = (value: string): string | null => {
-    if (!value.trim()) return "Phone number is required";
-    const digitsOnly = value.replace(/\D/g, "");
-    if (digitsOnly.length < 10 || digitsOnly.length > 15)
-      return "Enter a valid phone number";
-    return null;
-  };
-
-  const nameError = validateName(clientName);
-  const emailError = validateEmail(clientEmail);
-  const phoneError = validatePhone(clientPhone);
-  const removalError =
-    showRemovalDropdown && selectedRemovals.length === 0
-      ? "Please select a removal service, or uncheck if not needed"
-      : null;
-
   // --- Handlers ---
 
   const handleAddService = (type: "core" | "addon" | "removal", id: string) => {
@@ -334,12 +297,9 @@ export default function BookingPage() {
   };
 
   const handleSubmit = async () => {
-    setAttemptedSubmit(true);
-
-    if (nameError) return;
-    if (contactMethod === "email" && emailError) return;
-    if (contactMethod === "phone" && phoneError) return;
-    if (!selectedDateObj) return;
+    if (!selectedDateObj || !clientName) return;
+    if (contactMethod === "email" && !clientEmail) return;
+    if (contactMethod === "phone" && !clientPhone) return;
 
     setSubmitting(true);
     try {
@@ -886,11 +846,6 @@ export default function BookingPage() {
                         </motion.div>
                       )}
                     </AnimatePresence>
-                    {removalError && (
-                      <p className="text-red-500 text-xs mt-2">
-                        {removalError}
-                      </p>
-                    )}
                   </div>
 
                   {/* Selected List */}
@@ -966,8 +921,7 @@ export default function BookingPage() {
                       disabled={
                         selectedCoreServices.length === 0 ||
                         processingStep === 1 ||
-                        !!fileError ||
-                        !!removalError
+                        !!fileError
                       }
                       className="w-full py-4 bg-[#4A3728] text-white font-bold rounded-xl hover:bg-[#3A2B20] disabled:opacity-50 disabled:cursor-not-allowed transition shadow-lg flex items-center justify-center gap-2"
                     >
@@ -1009,17 +963,9 @@ export default function BookingPage() {
                       type="text"
                       value={clientName}
                       onChange={(e) => setClientName(e.target.value)}
-                      onBlur={() => setNameTouched(true)}
-                      className={`w-full p-3 border-2 rounded-xl focus:border-[#4A3728] outline-none ${
-                        (nameTouched || attemptedSubmit) && nameError
-                          ? "border-red-400"
-                          : "border-[#E8D5C4]"
-                      }`}
+                      className="w-full p-3 border-2 border-[#E8D5C4] rounded-xl focus:border-[#4A3728] outline-none"
                       placeholder="Your Name"
                     />
-                    {(nameTouched || attemptedSubmit) && nameError && (
-                      <p className="text-red-500 text-xs mt-1">{nameError}</p>
-                    )}
                   </div>
 
                   <div>
@@ -1048,45 +994,21 @@ export default function BookingPage() {
                     </div>
 
                     {contactMethod === "email" ? (
-                      <>
-                        <input
-                          type="email"
-                          value={clientEmail}
-                          onChange={(e) => setClientEmail(e.target.value)}
-                          onBlur={() => setEmailTouched(true)}
-                          className={`w-full p-3 border-2 rounded-xl focus:border-[#4A3728] outline-none ${
-                            (emailTouched || attemptedSubmit) && emailError
-                              ? "border-red-400"
-                              : "border-[#E8D5C4]"
-                          }`}
-                          placeholder="your@email.com"
-                        />
-                        {(emailTouched || attemptedSubmit) && emailError && (
-                          <p className="text-red-500 text-xs mt-1">
-                            {emailError}
-                          </p>
-                        )}
-                      </>
+                      <input
+                        type="email"
+                        value={clientEmail}
+                        onChange={(e) => setClientEmail(e.target.value)}
+                        className="w-full p-3 border-2 border-[#E8D5C4] rounded-xl focus:border-[#4A3728] outline-none"
+                        placeholder="your@email.com"
+                      />
                     ) : (
-                      <>
-                        <input
-                          type="tel"
-                          value={clientPhone}
-                          onChange={(e) => setClientPhone(e.target.value)}
-                          onBlur={() => setPhoneTouched(true)}
-                          className={`w-full p-3 border-2 rounded-xl focus:border-[#4A3728] outline-none ${
-                            (phoneTouched || attemptedSubmit) && phoneError
-                              ? "border-red-400"
-                              : "border-[#E8D5C4]"
-                          }`}
-                          placeholder="07123 456789"
-                        />
-                        {(phoneTouched || attemptedSubmit) && phoneError && (
-                          <p className="text-red-500 text-xs mt-1">
-                            {phoneError}
-                          </p>
-                        )}
-                      </>
+                      <input
+                        type="tel"
+                        value={clientPhone}
+                        onChange={(e) => setClientPhone(e.target.value)}
+                        className="w-full p-3 border-2 border-[#E8D5C4] rounded-xl focus:border-[#4A3728] outline-none"
+                        placeholder="07123 456789"
+                      />
                     )}
                   </div>
 
@@ -1097,8 +1019,8 @@ export default function BookingPage() {
                     onClick={handleSubmit}
                     disabled={
                       submitting ||
-                      !!nameError ||
-                      (contactMethod === "email" ? !!emailError : !!phoneError)
+                      !clientName ||
+                      (contactMethod === "email" ? !clientEmail : !clientPhone)
                     }
                     className="w-full py-4 bg-[#4A3728] text-white font-bold rounded-xl hover:bg-[#3A2B20] disabled:opacity-50 disabled:cursor-not-allowed transition shadow-lg flex items-center justify-center gap-2"
                   >

@@ -1,4 +1,4 @@
-import { Scissors, Menu, X, Mail, Phone, MapPin } from "lucide-react";
+import { Menu, X, Mail, Phone, MapPin } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -31,8 +31,7 @@ export default function Navbar() {
     <>
       <nav className="container mx-auto flex items-center justify-between py-4 px-4 absolute top-0 left-0 right-0 z-50">
         {/* Logo */}
-        <div className="flex items-center space-x-2">
-          <Scissors className="w-6 h-6 text-[#8B6F5C] drop-shadow-md" />
+        <div className="flex items-center">
           <span className="text-lg sm:text-xl font-bold text-[#8B6F5C] drop-shadow-md">
             TNL Beauty
           </span>
