@@ -33,7 +33,7 @@ export const coreServices: CoreService[] = [
   { id: 'gel-x', name: 'Full Set Gel-X Extension', price: 50 },
   { id: 'biab', name: 'BIAB', price: 40 },
   { id: 'gel-manicure', name: 'Gel Manicure', price: 25 },
-  { id: 'gel-toes', name: 'Gel on Toes', price: 25 },
+  // { id: 'gel-toes', name: 'Gel on Toes', price: 25 },
 ];
 
 // Nail Art Levels (optional, single selection)
