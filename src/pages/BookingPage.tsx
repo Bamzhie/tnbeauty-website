@@ -1,17 +1,18 @@
-import { useState, useEffect, useMemo } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  ChevronDown,
-  ChevronUp,
   Check,
-  Trash2,
-  Calendar as CalendarIcon,
-  Clock,
+  X,
   Loader2,
   ChevronLeft,
   ChevronRight,
-  Upload,
-  X,
+  Plus,
+  Minus,
+  Star,
+  MapPin,
+  ArrowRight,
+  Sparkles,
+  List,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -28,105 +29,80 @@ import {
   type AvailableDate,
 } from "../services/api";
 
-// Helper to get days in month
-const getDaysInMonth = (year: number, month: number) => {
-  return new Date(year, month + 1, 0).getDate();
-};
+const getDaysInMonth = (year: number, month: number) =>
+  new Date(year, month + 1, 0).getDate();
 
-// Helper to get day of week for first day of month (0-6, 0=Sun)
-const getFirstDayOfMonth = (year: number, month: number) => {
-  return new Date(year, month, 1).getDay();
-};
+const getFirstDayOfMonth = (year: number, month: number) =>
+  new Date(year, month, 1).getDay();
+
+// Category metadata — mirrors how Fresha groups services into named,
+// described sections rather than bare tabs.
+const CATEGORIES = [
+  {
+    id: "core",
+    label: "Core Services",
+    title: "Core Services",
+    description:
+      "The foundation of every appointment — extensions, overlays and manicures, each performed with precision and care.",
+    items: coreServices,
+  },
+  {
+    id: "nailArt",
+    label: "Nail Art",
+    title: "Nail Art",
+    description:
+      "Elevate your set with hand-finished detail. Choose one level to match the complexity you're after.",
+    items: nailArtLevels,
+  },
+  {
+    id: "addons",
+    label: "Add-ons",
+    title: "Add-ons",
+    description: "Optional finishing touches to make your set stand out.",
+    items: addOns,
+  },
+  {
+    id: "removals",
+    label: "Removals",
+    title: "Removals",
+    description:
+      "Safe, gentle removal of your existing set, done without damage to your natural nails.",
+    items: removals,
+  },
+] as const;
 
 export default function BookingPage() {
   const navigate = useNavigate();
-  const location = useLocation();
 
-  // --- State Management ---
-
-  // Visibility State
-  // 0: Date/Time (Always visible), 1: Treatments, 2: Contact
-  const [visibleSections, setVisibleSections] = useState<number[]>([0]);
-  const [completedSections, setCompletedSections] = useState<number[]>([]);
-  const [processingStep, setProcessingStep] = useState<number | null>(null); // Track which step is "loading"
-
-  // Data State
+  const [step, setStep] = useState<"services" | "time" | "confirm">("services");
   const [schedule, setSchedule] = useState<AvailableDate[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
 
-  // Selection State (with persistence initialization and pre-selected services)
-  const [selectedCoreServices, setSelectedCoreServices] = useState<string[]>(
-    () => {
-      const preSelected = (location.state as any)?.preSelectedServices || [];
-      const stored = JSON.parse(
-        localStorage.getItem("booking_coreServices") || "[]"
-      );
+  const [selectedCoreServices, setSelectedCoreServices] = useState<string[]>([]);
+  const [selectedNailArtLevel, setSelectedNailArtLevel] = useState<string | null>(null);
+  const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
+  const [selectedRemovals, setSelectedRemovals] = useState<string[]>([]);
 
-      // Separate core services from nail art
-      const coreServiceIds = coreServices.map((s) => s.id);
-      const preSelectedCore = preSelected.filter((id: string) =>
-        coreServiceIds.includes(id)
-      );
+  const [selectedDateStr, setSelectedDateStr] = useState<string | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
-      return preSelectedCore.length > 0 ? preSelectedCore : stored;
-    }
-  );
-  const [selectedNailArtLevel, setSelectedNailArtLevel] = useState<
-    string | null
-  >(() => {
-    const preSelected = (location.state as any)?.preSelectedServices || [];
-    const nailArtIds = nailArtLevels.map((l) => l.id);
-    const preSelectedNailArt = preSelected.find((id: string) =>
-      nailArtIds.includes(id)
-    );
+  const [clientName, setClientName] = useState("");
+  const [contactMethod, setContactMethod] = useState<"email" | "phone">("email");
+  const [clientEmail, setClientEmail] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
 
-    return preSelectedNailArt || localStorage.getItem("booking_nailArtLevel");
-  });
-  const [selectedRemovals, setSelectedRemovals] = useState<string[]>(() =>
-    JSON.parse(localStorage.getItem("booking_removals") || "[]")
-  );
-  const [showRemovalDropdown, setShowRemovalDropdown] = useState(false);
-
-  const [selectedDateStr, setSelectedDateStr] = useState<string | null>(() =>
-    localStorage.getItem("booking_date")
-  );
-  const [selectedTime, setSelectedTime] = useState<string | null>(() =>
-    localStorage.getItem("booking_time")
-  );
-
-  const [clientName, setClientName] = useState(
-    () => localStorage.getItem("booking_name") || ""
-  );
-  const [contactMethod, setContactMethod] = useState<"email" | "phone">(
-    () =>
-      (localStorage.getItem("booking_contactMethod") as "email" | "phone") ||
-      "email"
-  );
-  const [clientEmail, setClientEmail] = useState(
-    () => localStorage.getItem("booking_email") || ""
-  );
-  const [clientPhone, setClientPhone] = useState(
-    () => localStorage.getItem("booking_phone") || ""
-  );
-
-  // File Upload State (not persisted in localStorage)
-  const [inspoImage, setInspoImage] = useState<File | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
-
-  // Contact Field Validation State
-  const [nameTouched, setNameTouched] = useState(false);
-  const [emailTouched, setEmailTouched] = useState(false);
-  const [phoneTouched, setPhoneTouched] = useState(false);
-  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
-
-  // Calendar View State
+  const [selectedServiceModal, setSelectedServiceModal] = useState<any>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [activeCategory, setActiveCategory] = useState<string>("core");
+  const [showMobileCategoryMenu, setShowMobileCategoryMenu] = useState(false);
 
-  // --- Effects ---
+  const categoryRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const pillRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
+  const pillBarRef = useRef<HTMLDivElement | null>(null);
+  const ticking = useRef(false);
 
-  // Fetch Schedule
   useEffect(() => {
     fetchSchedule();
   }, []);
@@ -143,82 +119,81 @@ export default function BookingPage() {
     }
   };
 
-  // Persistence Effects
-  useEffect(
-    () =>
-      localStorage.setItem(
-        "booking_coreServices",
-        JSON.stringify(selectedCoreServices)
-      ),
-    [selectedCoreServices]
-  );
-
+  // Scroll spy — passively tracks which category section is on screen.
+  // IMPORTANT: this only writes state; it must never itself trigger a
+  // scroll (e.g. via scrollIntoView), or scroll -> state -> scroll turns
+  // into a feedback loop that fights the user's own scrolling.
   useEffect(() => {
-    if (selectedNailArtLevel)
-      localStorage.setItem("booking_nailArtLevel", selectedNailArtLevel);
-    else localStorage.removeItem("booking_nailArtLevel");
-  }, [selectedNailArtLevel]);
-  useEffect(
-    () =>
-      localStorage.setItem(
-        "booking_removals",
-        JSON.stringify(selectedRemovals)
-      ),
-    [selectedRemovals]
-  );
-  useEffect(() => {
-    if (selectedDateStr) localStorage.setItem("booking_date", selectedDateStr);
-    else localStorage.removeItem("booking_date");
-  }, [selectedDateStr]);
-  useEffect(() => {
-    if (selectedTime) localStorage.setItem("booking_time", selectedTime);
-    else localStorage.removeItem("booking_time");
-  }, [selectedTime]);
-  useEffect(
-    () => localStorage.setItem("booking_name", clientName),
-    [clientName]
-  );
-  useEffect(
-    () => localStorage.setItem("booking_contactMethod", contactMethod),
-    [contactMethod]
-  );
-  useEffect(
-    () => localStorage.setItem("booking_email", clientEmail),
-    [clientEmail]
-  );
-  useEffect(
-    () => localStorage.setItem("booking_phone", clientPhone),
-    [clientPhone]
-  );
+    const handleScroll = () => {
+      if (ticking.current) return;
+      ticking.current = true;
+      requestAnimationFrame(() => {
+        const scrollY = window.scrollY;
+        const lastCategory = CATEGORIES[CATEGORIES.length - 1];
 
-  // Clear persistence on success
-  const clearPersistence = () => {
-    localStorage.removeItem("booking_coreServices");
+        // Bottom of the page wins outright. A short final section never
+        // reaches the reading line: once the scroll is clamped at the end
+        // of the document there is nothing left to scroll, so the
+        // second-to-last category would stay lit even though the last
+        // section is the only one on screen.
+        const atBottom =
+          window.innerHeight + scrollY >=
+          document.documentElement.scrollHeight - 2;
 
-    localStorage.removeItem("booking_nailArtLevel");
-    localStorage.removeItem("booking_removals");
-    localStorage.removeItem("booking_date");
-    localStorage.removeItem("booking_time");
-    localStorage.removeItem("booking_name");
-    localStorage.removeItem("booking_contactMethod");
-    localStorage.removeItem("booking_email");
-    localStorage.removeItem("booking_phone");
-  };
+        if (atBottom) {
+          setActiveCategory((prev) =>
+            prev === lastCategory.id ? prev : lastCategory.id
+          );
+          ticking.current = false;
+          return;
+        }
 
-  // --- Computed Values ---
+        // Otherwise walk backwards and take the first (i.e. last, since
+        // we're going in reverse) section whose top has been passed.
+        for (let i = CATEGORIES.length - 1; i >= 0; i--) {
+          const cat = CATEGORIES[i];
+          const element = categoryRefs.current[cat.id];
+          if (element && scrollY + 220 >= element.offsetTop) {
+            setActiveCategory((prev) => (prev === cat.id ? prev : cat.id));
+            break;
+          }
+        }
+        ticking.current = false;
+      });
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Only the user clicking a pill should move anything — scroll the page
+  // to that section, and separately, nudge the pill row so the clicked
+  // pill is visible. Never runs from the scroll spy above.
+  const goToCategory = useCallback((id: string) => {
+    setActiveCategory(id);
+    const section = categoryRefs.current[id];
+    if (section) {
+      const top = section.getBoundingClientRect().top + window.scrollY - 96;
+      window.scrollTo({ top, behavior: "smooth" });
+    }
+    const pill = pillRefs.current[id];
+    if (pill) {
+      pill.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    }
+  }, []);
 
   const totalPrice = calculateTotalPrice(
     selectedCoreServices,
-    [],
+    selectedAddOns,
     selectedRemovals,
     selectedNailArtLevel
   );
   const selectedServicesList = getSelectedServiceNames(
     selectedCoreServices,
-    [],
+    selectedAddOns,
     selectedRemovals,
     selectedNailArtLevel
   );
+  const selectedCount = selectedServicesList.length;
 
   const selectedDateObj = useMemo(
     () => schedule.find((d) => d.date === selectedDateStr),
@@ -227,19 +202,8 @@ export default function BookingPage() {
 
   const availableTimeSlots = useMemo(() => {
     if (!selectedDateObj) return [];
-    // Always use the backend's availableSlots — it already filters out booked times
-    // for both full-day and timed slot appointments.
     return selectedDateObj.availableSlots ?? [];
   }, [selectedDateObj]);
-
-  // Clear selectedTime if it's no longer in the available slots (e.g. stale localStorage value)
-  useEffect(() => {
-    if (selectedTime && availableTimeSlots.length > 0 && !availableTimeSlots.includes(selectedTime)) {
-      setSelectedTime(null);
-    }
-  }, [availableTimeSlots, selectedTime]);
-
-  // --- Validation ---
 
   const validateName = (value: string): string | null => {
     if (!value.trim()) return "Name is required";
@@ -265,77 +229,50 @@ export default function BookingPage() {
   const nameError = validateName(clientName);
   const emailError = validateEmail(clientEmail);
   const phoneError = validatePhone(clientPhone);
-  const removalError =
-    showRemovalDropdown && selectedRemovals.length === 0
-      ? "Please select a removal service, or uncheck if not needed"
-      : null;
 
-  // --- Handlers ---
+  const getType = (id: string): "core" | "addon" | "removal" | "nailArt" =>
+    coreServices.some((s) => s.id === id)
+      ? "core"
+      : addOns.some((s) => s.id === id)
+      ? "addon"
+      : removals.some((s) => s.id === id)
+      ? "removal"
+      : "nailArt";
 
-  const handleAddService = (type: "core" | "addon" | "removal", id: string) => {
+  const isServiceSelected = (id: string) =>
+    selectedCoreServices.includes(id) ||
+    selectedAddOns.includes(id) ||
+    selectedRemovals.includes(id) ||
+    selectedNailArtLevel === id;
+
+  const handleAddService = (type: "core" | "addon" | "removal" | "nailArt", id: string) => {
     if (!id) return;
     if (type === "core") {
       if (!selectedCoreServices.includes(id))
         setSelectedCoreServices([...selectedCoreServices, id]);
+    } else if (type === "addon") {
+      if (!selectedAddOns.includes(id)) setSelectedAddOns([...selectedAddOns, id]);
     } else if (type === "removal") {
-      if (!selectedRemovals.includes(id))
-        setSelectedRemovals([...selectedRemovals, id]);
+      if (!selectedRemovals.includes(id)) setSelectedRemovals([...selectedRemovals, id]);
+    } else if (type === "nailArt") {
+      setSelectedNailArtLevel(id);
     }
   };
 
-  const handleRemoveService = (
-    type: "core" | "addon" | "removal" | "nailArt",
-    id: string
-  ) => {
-    if (type === "core")
-      setSelectedCoreServices((prev) => prev.filter((s) => s !== id));
-    else if (type === "removal")
-      setSelectedRemovals((prev) => prev.filter((s) => s !== id));
+  const handleRemoveService = (type: "core" | "addon" | "removal" | "nailArt", id: string) => {
+    if (type === "core") setSelectedCoreServices((prev) => prev.filter((s) => s !== id));
+    else if (type === "addon") setSelectedAddOns((prev) => prev.filter((s) => s !== id));
+    else if (type === "removal") setSelectedRemovals((prev) => prev.filter((s) => s !== id));
     else if (type === "nailArt") setSelectedNailArtLevel(null);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      if (file.size > 2 * 1024 * 1024) {
-        setFileError("Image size must be less than 2MB");
-        setInspoImage(null);
-      } else {
-        setFileError(null);
-        setInspoImage(file);
-      }
-    }
-  };
-
-  const handleNext = (currentSection: number) => {
-    setProcessingStep(currentSection);
-
-    // Simulate loading delay for better UX
-    setTimeout(() => {
-      if (!completedSections.includes(currentSection)) {
-        setCompletedSections([...completedSections, currentSection]);
-      }
-
-      const nextSection = currentSection + 1;
-      if (!visibleSections.includes(nextSection)) {
-        setVisibleSections([...visibleSections, nextSection]);
-      }
-
-      setProcessingStep(null);
-
-      // Scroll to next section
-      setTimeout(() => {
-        const element = document.getElementById(`section-${nextSection}`);
-        if (element) {
-          element.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
-      }, 100);
-    }, 600);
+  const toggleService = (id: string) => {
+    const type = getType(id);
+    if (isServiceSelected(id)) handleRemoveService(type, id);
+    else handleAddService(type, id);
   };
 
   const handleSubmit = async () => {
-    setAttemptedSubmit(true);
-
     if (nameError) return;
     if (contactMethod === "email" && emailError) return;
     if (contactMethod === "phone" && phoneError) return;
@@ -343,21 +280,13 @@ export default function BookingPage() {
 
     setSubmitting(true);
     try {
-      // Prepare FormData for file upload
       const formData = new FormData();
       formData.append("name", clientName);
-      if (contactMethod === "email" && clientEmail)
-        formData.append("email", clientEmail);
-      if (contactMethod === "phone" && clientPhone)
-        formData.append("phone", clientPhone);
+      if (contactMethod === "email" && clientEmail) formData.append("email", clientEmail);
+      if (contactMethod === "phone" && clientPhone) formData.append("phone", clientPhone);
       formData.append("date", selectedDateObj.displayDate);
       if (selectedTime) formData.append("time", selectedTime);
 
-      // Append arrays - need to be careful with how backend expects them
-      // NestJS FileInterceptor with JSON body usually works if we stringify or append individually
-      // But since we updated backend to accept arrays, let's append them individually
-
-      // Core Services
       selectedCoreServices.forEach((id) => {
         const name = coreServices.find((s) => s.id === id)?.name;
         if (name) formData.append("coreServices", name);
@@ -368,124 +297,41 @@ export default function BookingPage() {
         if (level) formData.append("addons", level.name);
       }
 
-      // Removals
+      selectedAddOns.forEach((id) => {
+        const name = addOns.find((a) => a.id === id)?.name;
+        if (name) formData.append("addons", name);
+      });
+
       selectedRemovals.forEach((id) => {
         const name = removals.find((r) => r.id === id)?.name;
         if (name) formData.append("removals", name);
       });
 
-      if (inspoImage) {
-        formData.append("customDesignImage", inspoImage);
-      }
-
       await createBooking(formData);
-      clearPersistence();
       setBookingSuccess(true);
     } catch (error: any) {
-      alert(
-        "Booking failed: " + (error.response?.data?.message || error.message)
-      );
+      alert("Booking failed: " + (error.response?.data?.message || error.message));
     } finally {
       setSubmitting(false);
     }
   };
 
-  // --- Render Helpers ---
-
-  const renderSummary = (showDate = false, showTreatments = true) => (
-    <div className="bg-[#FAF6F3] p-4 rounded-xl border border-[#E8D5C4] space-y-4 mt-4">
-      <h4 className="font-bold text-[#4A3728] border-b border-[#E8D5C4] pb-2 text-sm uppercase tracking-wide">
-        Current Booking Summary
-      </h4>
-
-      {/* Date & Time (Conditional) */}
-      {showDate && (
-        <div className="space-y-2">
-          <p className="text-xs font-bold text-[#8B7355] uppercase tracking-wider">
-            Date & Time
-          </p>
-          <div className="flex justify-between text-sm">
-            <span className="text-[#4A3728]">Date</span>
-            <span className="font-medium text-[#4A3728]">
-              {selectedDateStr
-                ? new Date(selectedDateStr).toLocaleDateString("en-GB", {
-                    weekday: "short",
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })
-                : "-"}
-            </span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-[#4A3728]">Time</span>
-            <span className="font-medium text-[#4A3728]">
-              {selectedTime || "-"}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Services List */}
-      {showTreatments && (
-        <div className="space-y-2">
-          <p className="text-xs font-bold text-[#8B7355] uppercase tracking-wider">
-            Treatments
-          </p>
-          {selectedServicesList.length > 0 ? (
-            <div className="space-y-1">
-              {selectedServicesList.map((item, idx) => (
-                <div key={idx} className="flex justify-between text-sm">
-                  <span className="text-[#4A3728]">{item.name}</span>
-                  <span className="font-medium text-[#4A3728]">
-                    £{item.price}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500 italic">
-              No treatments selected
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Total */}
-      {showTreatments && (
-        <div className="flex justify-between items-center pt-3 border-t border-[#E8D5C4]">
-          <span className="font-bold text-[#4A3728] text-lg">
-            Total Estimate
-          </span>
-          <span className="font-black text-[#4A3728] text-2xl">
-            £{totalPrice}
-          </span>
-        </div>
-      )}
-    </div>
-  );
-
-  // --- Calendar Logic ---
   const renderCalendar = () => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
     const daysInMonth = getDaysInMonth(year, month);
-    const firstDay = getFirstDayOfMonth(year, month); // 0=Sun
-
+    const firstDay = getFirstDayOfMonth(year, month);
     const startDay = firstDay === 0 ? 6 : firstDay - 1;
 
     const days = [];
     for (let i = 0; i < startDay; i++) {
-      days.push(<div key={`empty-${i}`} className="h-10 md:h-12"></div>);
+      days.push(<div key={`empty-${i}`} className="h-10 md:h-11"></div>);
     }
 
     for (let day = 1; day <= daysInMonth; day++) {
-      const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(
-        day
-      ).padStart(2, "0")}`;
+      const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
       const isAvailable = schedule.some((d) => d.date === dateStr && d.canBook);
       const isSelected = selectedDateStr === dateStr;
-      const availableDate = schedule.find((d) => d.date === dateStr);
 
       days.push(
         <button
@@ -493,22 +339,19 @@ export default function BookingPage() {
           disabled={!isAvailable}
           onClick={() => {
             setSelectedDateStr(dateStr);
-            setSelectedTime(null); // Reset time on date change
+            setSelectedTime(null);
           }}
-          className={`h-10 md:h-12 rounded-lg flex items-center justify-center text-sm font-medium transition relative
+          className={`h-10 md:h-11 rounded-full flex items-center justify-center text-sm font-medium transition
             ${
               isSelected
-                ? "bg-[#4A3728] text-white shadow-lg scale-105 z-10"
+                ? "bg-[#4A3728] text-white shadow-sm"
                 : isAvailable
-                ? "bg-white border-2 border-[#E8B4A8] text-[#4A3728] hover:bg-[#E8B4A8] hover:text-white font-bold shadow-sm"
-                : "bg-gray-100 text-gray-300 cursor-not-allowed"
+                ? "border border-[#4A3728] text-[#4A3728] hover:bg-[#FAF6F3] font-semibold"
+                : "text-gray-300 cursor-not-allowed"
             }
           `}
         >
           {day}
-          {isAvailable && availableDate?.type === "timed" && (
-            <span className="absolute bottom-0.5 right-1 w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-          )}
         </button>
       );
     }
@@ -517,118 +360,349 @@ export default function BookingPage() {
   };
 
   const nextMonth = () =>
-    setCurrentMonth(
-      new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1)
-    );
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   const prevMonth = () =>
-    setCurrentMonth(
-      new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1)
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+
+  // --- Service Detail Modal ---
+  const ServiceModal = () => {
+    if (!selectedServiceModal) return null;
+    const isSelected = isServiceSelected(selectedServiceModal.id);
+
+    return (
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40"
+          onClick={() => setSelectedServiceModal(null)}
+        >
+          <motion.div
+            initial={{ y: 24, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 24, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl overflow-hidden"
+          >
+            <div className="flex items-center justify-between p-4 border-b border-[#E8D5C4]">
+              <h3 className="font-heading text-base font-bold text-[#4A3728]">{selectedServiceModal.name}</h3>
+              <button
+                onClick={() => setSelectedServiceModal(null)}
+                className="p-1 hover:bg-gray-100 rounded-full"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {selectedServiceModal.image && (
+                <img
+                  src={selectedServiceModal.image}
+                  alt={selectedServiceModal.name}
+                  className="w-full h-44 object-cover rounded-xl"
+                />
+              )}
+
+              {selectedServiceModal.description && (
+                <p className="text-sm text-[#6B5344] leading-relaxed">
+                  {selectedServiceModal.description}
+                </p>
+              )}
+
+              {selectedServiceModal.exampleImages && (
+                <div className="grid grid-cols-3 gap-2">
+                  {selectedServiceModal.exampleImages.map((img: string, idx: number) => (
+                    <img
+                      key={idx}
+                      src={img}
+                      alt={`Example ${idx + 1}`}
+                      className="w-full h-20 object-cover rounded-lg"
+                    />
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-4 border-t border-[#E8D5C4]">
+                <span className="text-xl font-bold text-[#4A3728]">
+                  £{selectedServiceModal.price}
+                </span>
+                <button
+                  onClick={() => {
+                    toggleService(selectedServiceModal.id);
+                    setSelectedServiceModal(null);
+                  }}
+                  className={`px-5 py-2.5 rounded-full font-bold transition flex items-center gap-2 ${
+                    isSelected
+                      ? "border-2 border-[#4A3728] text-[#4A3728] hover:bg-[#FAF6F3]"
+                      : "bg-[#4A3728] text-white hover:bg-[#3A2B20]"
+                  }`}
+                >
+                  {isSelected ? (
+                    <>
+                      <Minus className="w-4 h-4" /> Remove
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4" /> Add
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
     );
+  };
 
   if (bookingSuccess) {
     return (
-      <div className="min-h-screen py-12 px-4 flex items-center justify-center">
+      <div className="min-h-screen py-12 px-4 flex items-center justify-center bg-[#FAF6F3]">
         <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
+          initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           className="bg-white rounded-2xl p-8 shadow-xl max-w-md w-full text-center"
         >
           <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
             <Check className="w-10 h-10" />
           </div>
-          <h2 className="text-3xl font-bold text-[#4A3728] mb-4">
-            Booking Confirmed!
+          <h2 className="font-heading text-3xl font-bold text-[#4A3728] mb-4">
+            Booking confirmed
           </h2>
           <p className="text-[#6B5344] mb-6">
-            Thank you, {clientName}! Your appointment has been successfully
-            requested. We've sent a confirmation email to you.
+            Thanks, {clientName}. Your appointment request has been sent — we'll be in touch to
+            confirm.
           </p>
           <button
             onClick={() => navigate("/")}
-            className="w-full py-3 bg-[#4A3728] text-white font-bold rounded-xl hover:bg-[#3A2B20] transition"
+            className="w-full py-3 bg-[#4A3728] text-white font-bold rounded-full hover:bg-[#3A2B20] transition"
           >
-            Return to Home
+            Return to home
           </button>
         </motion.div>
       </div>
     );
   }
 
+  const steps: { id: "services" | "time" | "confirm"; label: string }[] = [
+    { id: "services", label: "Services" },
+    { id: "time", label: "Time" },
+    { id: "confirm", label: "Confirm" },
+  ];
+  const stepIndex = steps.findIndex((s) => s.id === step);
+
   return (
-    <div className="min-h-screen py-8 px-4">
-      <div className="container mx-auto max-w-3xl">
-        {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
+    <div className="min-h-screen bg-[#FAF6F3]">
+      <ServiceModal />
+
+      {/* Header */}
+      <div className="bg-[#FAF6F3] px-4 sm:px-6 lg:px-10 xl:px-14 py-4">
+        <div className="max-w-booking mx-auto flex items-center justify-between">
+          <button
+            onClick={() =>
+              step === "services" ? navigate("/") : setStep(steps[stepIndex - 1].id)
+            }
+            className="w-9 h-9 lg:w-11 lg:h-11 rounded-full border border-[#E8D5C4] bg-white flex items-center justify-center hover:border-[#4A3728] transition"
+            aria-label="Back"
+          >
+            <ChevronLeft className="w-5 h-5 lg:w-6 lg:h-6 text-[#4A3728]" />
+          </button>
           <button
             onClick={() => navigate("/")}
-            className="flex items-center gap-2 text-[#4A3728] hover:text-[#6B5344] transition font-medium"
+            className="w-9 h-9 lg:w-11 lg:h-11 rounded-full border border-[#E8D5C4] bg-white flex items-center justify-center hover:border-[#4A3728] transition"
+            aria-label="Close"
           >
-            <ChevronLeft className="w-5 h-5" />
-            Back
+            <X className="w-5 h-5 lg:w-6 lg:h-6 text-[#4A3728]" />
           </button>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#4A3728]">
-            Book Appointment
-          </h1>
-          <div className="w-16"></div> {/* Spacer for centering */}
         </div>
+      </div>
 
-        {/* Main Card Container */}
-        <div className="bg-white rounded-2xl shadow-md overflow-hidden">
-          {/* Section 1: Date & Time */}
-          <div id="section-0" className="p-6 md:p-8">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-8 h-8 rounded-full bg-[#4A3728] text-white flex items-center justify-center font-bold">
-                1
+      {/* Main content */}
+      <div className="max-w-booking mx-auto px-4 sm:px-6 pb-32 lg:pb-10 flex flex-col lg:flex-row gap-10 lg:gap-16 items-start">
+        {/* Left column */}
+        <div className="flex-1 lg:max-w-xl w-full">
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-2 text-sm mb-5">
+            {steps.map((s, idx) => (
+              <span key={s.id} className="flex items-center gap-2">
+                <span
+                  className={
+                    idx === stepIndex
+                      ? "text-[#4A3728] font-bold"
+                      : idx < stepIndex
+                      ? "text-[#4A3728]"
+                      : "text-[#B8A897]"
+                  }
+                >
+                  {s.label}
+                </span>
+                {idx < steps.length - 1 && <ChevronRight className="w-4 h-4 text-[#D9C9B8]" />}
+              </span>
+            ))}
+          </div>
+
+          {/* Step 1: Services */}
+          {step === "services" && (
+            <div>
+              <h1 className="font-heading text-3xl md:text-4xl font-bold text-[#4A3728] mb-5">
+                Select services
+              </h1>
+
+              {/* Sticky category nav */}
+              <div
+                ref={pillBarRef}
+                className="sticky top-0 z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 mb-8 border-b border-[#E8D5C4] bg-[#FAF6F3]"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-nowrap overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {CATEGORIES.map((cat) => (
+                      <button
+                        key={cat.id}
+                        ref={(el) => {
+                          pillRefs.current[cat.id] = el;
+                        }}
+                        onClick={() => goToCategory(cat.id)}
+                        className={`whitespace-nowrap px-4 py-2.5 rounded-full text-sm font-medium border transition ${
+                          activeCategory === cat.id
+                            ? "bg-[#4A3728] border-[#4A3728] text-white"
+                            : "bg-white border-[#E8D5C4] text-[#4A3728] hover:border-[#4A3728]"
+                        }`}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Menu button: mobile-only, opens a dropdown listing the categories */}
+                  <button
+                    className="lg:hidden ml-1 w-10 h-10 shrink-0 rounded-full border border-[#E8D5C4] bg-white flex items-center justify-center hover:border-[#4A3728] transition"
+                    aria-label="All categories"
+                    aria-expanded={showMobileCategoryMenu}
+                    onClick={() => setShowMobileCategoryMenu((prev) => !prev)}
+                  >
+                    <List className="w-4 h-4 text-[#4A3728]" />
+                  </button>
+                </div>
+
+                {/* Mobile dropdown: lists every category, closes on selection */}
+                {showMobileCategoryMenu && (
+                  <div className="lg:hidden absolute right-4 sm:right-6 top-full mt-2 w-48 bg-white border border-[#E8D5C4] rounded-xl shadow-lg overflow-hidden z-30">
+                    {CATEGORIES.map((cat) => (
+                      <button
+                        key={cat.id}
+                        onClick={() => {
+                          goToCategory(cat.id);
+                          setShowMobileCategoryMenu(false);
+                        }}
+                        className={`w-full text-left px-4 py-3 text-sm font-medium transition ${
+                          activeCategory === cat.id
+                            ? "bg-[#FAF6F3] text-[#4A3728] font-bold"
+                            : "text-[#4A3728] hover:bg-[#FAF6F3]"
+                        }`}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              <h2 className="text-xl font-bold text-[#4A3728]">Date & Time</h2>
+
+              {/* Category sections */}
+              <div className="space-y-12">
+                {CATEGORIES.map((cat) => (
+                  <div
+                    key={cat.id}
+                    ref={(el) => {
+                      categoryRefs.current[cat.id] = el;
+                    }}
+                    className="scroll-mt-24"
+                  >
+                    <h2 className="font-heading text-xl font-bold text-[#4A3728] mb-1">
+                      {cat.title}
+                    </h2>
+                    <p className="text-sm text-[#6B5344] mb-4 max-w-lg">{cat.description}</p>
+
+                    <div className="space-y-3">
+                      {cat.items.map((item: any) => {
+                        const selected = isServiceSelected(item.id);
+                        return (
+                          <div
+                            key={item.id}
+                            className={`rounded-2xl p-4 flex items-start justify-between gap-4 cursor-pointer transition border-2 ${
+                              selected
+                                ? "border-[#4A3728] bg-white"
+                                : "border-[#E8D5C4] bg-white hover:border-[#4A3728]"
+                            }`}
+                            onClick={() => setSelectedServiceModal(item)}
+                          >
+                            <div className="min-w-0">
+                              <h3 className="font-heading font-semibold text-[#4A3728]">{item.name}</h3>
+                              <p className="text-sm text-[#6B5344] mt-1 line-clamp-2 max-w-md">
+                                {item.description}
+                              </p>
+                              <p className="text-sm font-bold text-[#4A3728] mt-3">
+                                £{item.price}
+                              </p>
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleService(item.id);
+                              }}
+                              className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition ${
+                                selected
+                                  ? "bg-[#4A3728] text-white"
+                                  : "bg-[#FAF6F3] text-[#4A3728] hover:bg-[#E8D5C4]"
+                              }`}
+                              aria-label={selected ? "Remove" : "Add"}
+                            >
+                              {selected ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
+          )}
 
-            <div className="space-y-6">
-              {/* Calendar Header */}
-              <div className="flex items-center justify-between mb-4">
-                <button
-                  onClick={prevMonth}
-                  className="p-2 hover:bg-gray-100 rounded-full"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <h3 className="font-bold text-[#4A3728] text-lg">
-                  {currentMonth.toLocaleDateString("en-US", {
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </h3>
-                <button
-                  onClick={nextMonth}
-                  className="p-2 hover:bg-gray-100 rounded-full"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </div>
+          {/* Step 2: Time */}
+          {step === "time" && (
+            <div>
+              <h1 className="font-heading text-2xl md:text-3xl font-bold text-[#4A3728] mb-6">
+                Select date &amp; time
+              </h1>
 
-              {/* Calendar Grid */}
-              <div className="grid grid-cols-7 gap-2 mb-6">
-                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(
-                  (day) => (
-                    <div
-                      key={day}
-                      className="text-center text-xs font-bold text-[#8B7355] uppercase py-2"
-                    >
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <button onClick={prevMonth} className="p-2 hover:bg-white rounded-full">
+                    <ChevronLeft className="w-5 h-5 text-[#4A3728]" />
+                  </button>
+                  <h3 className="font-heading font-bold text-[#4A3728]">
+                    {currentMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                  </h3>
+                  <button onClick={nextMonth} className="p-2 hover:bg-white rounded-full">
+                    <ChevronRight className="w-5 h-5 text-[#4A3728]" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-7 gap-1 mb-2">
+                  {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+                    <div key={day} className="text-center text-xs font-bold text-[#8B7355] uppercase py-2">
                       {day}
                     </div>
-                  )
-                )}
-                {renderCalendar()}
+                  ))}
+                  {renderCalendar()}
+                </div>
               </div>
 
-              {/* Time Selection */}
               {selectedDateStr && (
                 <div className="space-y-3">
-                  <label className="block text-sm font-bold text-[#4A3728]">
-                    Select Time
-                  </label>
+                  <p className="text-sm font-bold text-[#4A3728]">Available times</p>
                   {availableTimeSlots.length === 0 ? (
-                    <p className="text-sm text-gray-400 italic py-3 text-center">
+                    <p className="text-sm text-gray-400 italic py-3">
                       No available times for this date.
                     </p>
                   ) : (
@@ -638,10 +712,10 @@ export default function BookingPage() {
                           key={time}
                           type="button"
                           onClick={() => setSelectedTime(time === selectedTime ? null : time)}
-                          className={`py-2.5 px-3 rounded-xl border-2 text-sm font-semibold transition-all duration-150 ${
+                          className={`py-2.5 px-3 rounded-full border-2 text-sm font-semibold transition ${
                             selectedTime === time
-                              ? "bg-[#4A3728] border-[#4A3728] text-white shadow-md scale-[1.03]"
-                              : "bg-white border-[#E8D5C4] text-[#4A3728] hover:border-[#4A3728] hover:bg-[#FAF6F3]"
+                              ? "bg-[#4A3728] border-[#4A3728] text-white shadow-sm"
+                              : "bg-white border-[#E8D5C4] text-[#4A3728] hover:border-[#4A3728]"
                           }`}
                         >
                           {time}
@@ -651,472 +725,292 @@ export default function BookingPage() {
                   )}
                 </div>
               )}
+            </div>
+          )}
 
-              {/* Next Button for Section 1 */}
-              {!completedSections.includes(0) && (
-                <div className="pt-4">
-                  <button
-                    onClick={() => handleNext(0)}
-                    disabled={
-                      !selectedDateStr || !selectedTime || processingStep === 0
-                    }
-                    className="w-full py-4 bg-[#4A3728] text-white font-bold rounded-xl hover:bg-[#3A2B20] disabled:opacity-50 disabled:cursor-not-allowed transition shadow-lg flex items-center justify-center gap-2"
-                  >
-                    {processingStep === 0 ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      "Next"
-                    )}
-                  </button>
+          {/* Step 3: Confirm */}
+          {step === "confirm" && (
+            <div>
+              <h1 className="font-heading text-2xl md:text-3xl font-bold text-[#4A3728] mb-6">
+                Your details
+              </h1>
+
+              <div className="space-y-5 max-w-md">
+                <div>
+                  <label className="block text-sm font-bold text-[#4A3728] mb-2">Name</label>
+                  <input
+                    type="text"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    className={`w-full p-3 border-2 rounded-xl focus:border-[#4A3728] outline-none bg-white ${
+                      nameError && clientName ? "border-red-400" : "border-[#E8D5C4]"
+                    }`}
+                    placeholder="Your name"
+                  />
+                  {nameError && clientName && (
+                    <p className="text-red-500 text-xs mt-1">{nameError}</p>
+                  )}
                 </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-[#4A3728] mb-2">
+                    Preferred contact method
+                  </label>
+                  <div className="flex gap-2 mb-3">
+                    {(["email", "phone"] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setContactMethod(m)}
+                        className={`px-4 py-2 rounded-full text-sm font-bold border-2 transition ${
+                          contactMethod === m
+                            ? "bg-[#4A3728] border-[#4A3728] text-white"
+                            : "bg-white border-[#E8D5C4] text-[#4A3728]"
+                        }`}
+                      >
+                        {m === "email" ? "Email" : "Phone"}
+                      </button>
+                    ))}
+                  </div>
+
+                  {contactMethod === "email" ? (
+                    <>
+                      <input
+                        type="email"
+                        value={clientEmail}
+                        onChange={(e) => setClientEmail(e.target.value)}
+                        className={`w-full p-3 border-2 rounded-xl focus:border-[#4A3728] outline-none bg-white ${
+                          emailError && clientEmail ? "border-red-400" : "border-[#E8D5C4]"
+                        }`}
+                        placeholder="your@email.com"
+                      />
+                      {emailError && clientEmail && (
+                        <p className="text-red-500 text-xs mt-1">{emailError}</p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <input
+                        type="tel"
+                        value={clientPhone}
+                        onChange={(e) => setClientPhone(e.target.value)}
+                        className={`w-full p-3 border-2 rounded-xl focus:border-[#4A3728] outline-none bg-white ${
+                          phoneError && clientPhone ? "border-red-400" : "border-[#E8D5C4]"
+                        }`}
+                        placeholder="07123 456789"
+                      />
+                      {phoneError && clientPhone && (
+                        <p className="text-red-500 text-xs mt-1">{phoneError}</p>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Spacer: keeps the pinned summary's column reserved in the flex row
+            so the service list can never run into the card, and ml-auto shoves
+            that column hard right — which is what opens up the gap. */}
+        <div className="hidden lg:block w-[420px] shrink-0 ml-auto" />
+
+        {/* The summary is PINNED, not sticky: it must not move a single pixel
+            while the list scrolls past it. A fixed box escapes the flex row,
+            so it re-anchors by replaying this page's own container geometry
+            (max-w-booking + px-6 + justify-end) — that tracks the real layout
+            width, scrollbar included, at any viewport size, with no maths.
+            top-24 clears the header, bottom-6 keeps a margin under the CTA. */}
+        <div className="hidden lg:flex fixed top-24 bottom-6 left-0 right-0 z-10 pointer-events-none max-w-booking mx-auto px-6 justify-end">
+          <div className="w-[420px] h-full pointer-events-auto flex flex-col bg-white border-2 border-[#E8D5C4] rounded-2xl shadow-sm pt-6 pb-6 px-6">
+            {/* Business card */}
+            <div className="flex gap-3">
+              <div className="w-14 h-14 rounded-xl bg-[#4A3728] flex items-center justify-center shrink-0">
+                <Sparkles className="w-6 h-6 text-white" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-bold text-[#4A3728] truncate">TNL Beauty</h3>
+                {/* <div className="flex items-center gap-1 text-sm">
+                  <Star className="w-3.5 h-3.5 fill-[#E8B4A8] text-[#E8B4A8]" />
+                  <span className="font-bold text-[#4A3728]">4.9</span>
+                  <span className="text-[#8B7355]">(238)</span>
+                </div> */}
+                <div className="flex items-center gap-1 text-xs text-[#8B7355] mt-0.5">
+                  <MapPin className="w-3 h-3 shrink-0" />
+                  <span className="truncate">By appointment · UK</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="h-px bg-[#E8D5C4] my-4 shrink-0" />
+
+            {(step === "time" || step === "confirm") && (
+              <div className="space-y-1 mb-4 shrink-0">
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#8B7355]">Date</span>
+                  <span className="font-medium text-[#4A3728]">
+                    {selectedDateStr
+                      ? new Date(selectedDateStr).toLocaleDateString("en-GB", {
+                          weekday: "short",
+                          day: "numeric",
+                          month: "short",
+                        })
+                      : "-"}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#8B7355]">Time</span>
+                  <span className="font-medium text-[#4A3728]">{selectedTime || "-"}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Services — scrolls internally if the list is long, so the
+                card itself never grows past its fixed height */}
+            <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
+              {selectedCount > 0 ? (
+                <div className="space-y-2">
+                  {selectedServicesList.map((item, idx) => (
+                    <div key={idx} className="flex justify-between text-sm gap-3">
+                      <span className="text-[#4A3728]">{item.name}</span>
+                      <span className="font-medium text-[#4A3728] shrink-0">£{item.price}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 italic">No services selected</p>
+              )}
+            </div>
+
+            <div className="shrink-0 pt-4">
+              <div className="h-px bg-[#E8D5C4] mb-4" />
+
+              <div className="flex justify-between items-center mb-5">
+                <span className="font-bold text-[#4A3728]">Total</span>
+                <span className="font-black text-[#4A3728] text-xl">
+                  {totalPrice > 0 ? `£${totalPrice}` : "free"}
+                </span>
+              </div>
+
+              {step === "services" && (
+                <button
+                  onClick={() => setStep("time")}
+                  disabled={selectedCoreServices.length === 0}
+                  className={`w-full py-3 rounded-full font-bold transition flex items-center justify-center gap-2 ${
+                    selectedCoreServices.length === 0
+                      ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                      : "bg-[#4A3728] text-white hover:bg-[#3A2B20] shadow-sm"
+                  }`}
+                >
+                  Continue <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
+              {step === "time" && (
+                <button
+                  onClick={() => setStep("confirm")}
+                  disabled={!selectedDateStr || !selectedTime}
+                  className={`w-full py-3 rounded-full font-bold transition flex items-center justify-center gap-2 ${
+                    !selectedDateStr || !selectedTime
+                      ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                      : "bg-[#4A3728] text-white hover:bg-[#3A2B20] shadow-sm"
+                  }`}
+                >
+                  Continue <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
+              {step === "confirm" && (
+                <button
+                  onClick={handleSubmit}
+                  disabled={
+                    submitting ||
+                    !!validateName(clientName) ||
+                    (contactMethod === "email" ? !!validateEmail(clientEmail) : !!validatePhone(clientPhone))
+                  }
+                  className={`w-full py-3 rounded-full font-bold transition flex items-center justify-center gap-2 ${
+                    submitting ||
+                    !!validateName(clientName) ||
+                    (contactMethod === "email" ? !!validateEmail(clientEmail) : !!validatePhone(clientPhone))
+                      ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                      : "bg-[#4A3728] text-white hover:bg-[#3A2B20] shadow-sm"
+                  }`}
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Processing...
+                    </>
+                  ) : (
+                    "Confirm booking"
+                  )}
+                </button>
               )}
             </div>
           </div>
+        </div>
 
-          {/* Section 2: Treatments */}
-          {visibleSections.includes(1) && (
-            <>
-              <div className="border-t border-gray-100 mx-6 md:mx-8"></div>
-              <div id="section-1" className="p-6 md:p-8">
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-8 h-8 rounded-full bg-[#4A3728] text-white flex items-center justify-center font-bold">
-                    2
-                  </div>
-                  <h2 className="text-xl font-bold text-[#4A3728]">
-                    Treatments
-                  </h2>
-                </div>
-
-                <div className="space-y-8">
-                  {/* Core Services Dropdown */}
-                  <div>
-                    <label className="block text-sm font-bold text-[#4A3728] mb-2">
-                      Core Services
-                    </label>
-                    <select
-                      className="w-full p-3 rounded-xl border-2 border-[#E8D5C4] focus:border-[#4A3728] outline-none bg-white text-[#4A3728]"
-                      onChange={(e) => {
-                        handleAddService("core", e.target.value);
-                        e.target.value = "";
-                      }}
-                    >
-                      <option value="">Select a service...</option>
-                      {coreServices.map((s) => (
-                        <option
-                          key={s.id}
-                          value={s.id}
-                          disabled={selectedCoreServices.includes(s.id)}
-                        >
-                          {s.name} (£{s.price})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Nail Art Levels - Dropdown Selection */}
-                  <div>
-                    <label className="block text-sm font-bold text-[#4A3728] mb-2">
-                      Nail Art Level (Optional)
-                    </label>
-                    <select
-                      className="w-full p-3 rounded-xl border-2 border-[#E8D5C4] focus:border-[#4A3728] outline-none bg-white text-[#4A3728]"
-                      value={selectedNailArtLevel || ""}
-                      onChange={(e) =>
-                        setSelectedNailArtLevel(e.target.value || null)
-                      }
-                    >
-                      <option value="">No Nail Art</option>
-                      {nailArtLevels.map((level) => (
-                        <option key={level.id} value={level.id}>
-                          {level.name} (£{level.price})
-                        </option>
-                      ))}
-                    </select>
-
-                    {/* Example Images for Selected Level */}
-                    <AnimatePresence>
-                      {selectedNailArtLevel && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="mt-4"
-                        >
-                          <p className="text-xs font-bold text-[#8B7355] uppercase tracking-wider mb-2">
-                            Examples of{" "}
-                            {
-                              nailArtLevels.find(
-                                (l) => l.id === selectedNailArtLevel
-                              )?.name
-                            }
-                          </p>
-
-                          {/* Conditional Layout: Carousel if > 3 images, Grid if <= 3 */}
-                          {(() => {
-                            const images =
-                              nailArtLevels.find(
-                                (l) => l.id === selectedNailArtLevel
-                              )?.exampleImages || [];
-                            const isCarousel = images.length > 3;
-
-                            return (
-                              <div
-                                className={
-                                  isCarousel
-                                    ? "flex overflow-x-auto gap-2 pb-2 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-4 md:overflow-visible md:pb-0"
-                                    : "grid grid-cols-3 md:grid-cols-4 gap-2"
-                                }
-                              >
-                                {images.map((img, idx) => (
-                                  <div
-                                    key={idx}
-                                    className={`aspect-square rounded-lg overflow-hidden border border-[#E8D5C4] flex-shrink-0 ${
-                                      isCarousel
-                                        ? "w-1/3 md:w-auto snap-center"
-                                        : "w-full"
-                                    }`}
-                                  >
-                                    <img
-                                      src={img}
-                                      alt={`Example ${idx + 1}`}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  </div>
-                                ))}
-                              </div>
-                            );
-                          })()}
-
-                          <p className="text-xs text-[#6B5344] mt-2 italic">
-                            {
-                              nailArtLevels.find(
-                                (l) => l.id === selectedNailArtLevel
-                              )?.description
-                            }
-                          </p>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    {/* Upload Inspo - Commented out
-                    <div className="mt-4">
-                      <label className="block text-sm font-bold text-[#4A3728] mb-2">
-                        Upload Inspo (Optional)
-                      </label>
-                      <div className="flex items-center gap-4">
-                        <label className="flex items-center gap-2 px-4 py-2 border-2 border-[#E8D5C4] rounded-xl cursor-pointer hover:bg-[#FAF6F3] transition text-[#4A3728]">
-                          <Upload className="w-4 h-4" />
-                          <span className="text-sm font-medium">
-                            Choose Image
-                          </span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleFileChange}
-                            className="hidden"
-                          />
-                        </label>
-                        {inspoImage && (
-                          <div className="flex items-center gap-2 bg-[#E8D5C4] px-3 py-1 rounded-lg">
-                            <span className="text-xs text-[#4A3728] truncate max-w-[150px]">
-                              {inspoImage.name}
-                            </span>
-                            <button
-                              onClick={() => setInspoImage(null)}
-                              className="text-[#4A3728] hover:text-red-500"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-xs text-[#8B7355] mt-1 italic">
-                        Image size must be less than 2MB
-                      </p>
-                    </div>
-                    */}
-                  </div>
-
-                  {/* Removals - Conditional */}
-                  <div className="pt-4 border-t border-[#E8D5C4]">
-                    <label className="flex items-center gap-2 cursor-pointer mb-4">
-                      <input
-                        type="checkbox"
-                        checked={showRemovalDropdown}
-                        onChange={(e) => {
-                          setShowRemovalDropdown(e.target.checked);
-                          if (!e.target.checked) setSelectedRemovals([]); // Clear removals if unchecked
-                        }}
-                        className="w-4 h-4 text-[#4A3728] rounded focus:ring-[#4A3728]"
-                      />
-                      <span className="text-sm font-bold text-[#4A3728]">
-                        Need a removal?
-                      </span>
-                    </label>
-
-                    <AnimatePresence>
-                      {showRemovalDropdown && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          className="overflow-hidden"
-                        >
-                          <select
-                            className="w-full p-3 rounded-xl border-2 border-[#E8D5C4] focus:border-[#4A3728] outline-none bg-white text-[#4A3728]"
-                            onChange={(e) => {
-                              handleAddService("removal", e.target.value);
-                              e.target.value = "";
-                            }}
-                          >
-                            <option value="">Select a removal...</option>
-                            {removals.map((s) => (
-                              <option
-                                key={s.id}
-                                value={s.id}
-                                disabled={selectedRemovals.includes(s.id)}
-                              >
-                                {s.name} (£{s.price})
-                              </option>
-                            ))}
-                          </select>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                    {removalError && (
-                      <p className="text-red-500 text-xs mt-2">
-                        {removalError}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Selected List */}
-                  {selectedServicesList.length > 0 && (
-                    <div className="bg-[#FAF6F3] rounded-xl p-4 space-y-3">
-                      <h3 className="font-bold text-[#4A3728] text-sm uppercase tracking-wide">
-                        Selected Items
-                      </h3>
-                      {selectedServicesList.map((item, idx) => (
-                        <div
-                          key={idx}
-                          className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-[#E8D5C4]"
-                        >
-                          <div>
-                            <span className="font-medium text-[#4A3728] block">
-                              {item.name}
-                            </span>
-                            <span className="text-[#8B7355] text-sm">
-                              £{item.price}
-                            </span>
-                          </div>
-                          <button
-                            onClick={() =>
-                              handleRemoveService(
-                                coreServices.some((s) => s.name === item.name)
-                                  ? "core"
-                                  : addOns.some((s) => s.name === item.name)
-                                  ? "addon"
-                                  : nailArtLevels.some(
-                                      (s) => s.name === item.name
-                                    )
-                                  ? "nailArt"
-                                  : "removal",
-                                [
-                                  ...coreServices,
-                                  ...addOns,
-                                  ...nailArtLevels,
-                                  ...removals,
-                                ].find((s) => s.name === item.name)?.id || ""
-                              )
-                            }
-                            className="text-red-400 hover:text-red-600 p-2"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-
-                      <div className="flex justify-between items-center pt-3 border-t border-[#E8D5C4]">
-                        <span className="font-bold text-[#4A3728] text-lg">
-                          Total Estimate
-                        </span>
-                        <span className="font-black text-[#4A3728] text-2xl">
-                          £{totalPrice}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Booking Summary with Date/Time */}
-                  {renderSummary(true, false)}
-
-                  {fileError && (
-                    <p className="text-red-500 text-sm font-bold text-center mb-2">
-                      {fileError}
-                    </p>
-                  )}
-
-                  {/* Next Button for Section 2 */}
-                  {!completedSections.includes(1) && (
-                    <button
-                      onClick={() => handleNext(1)}
-                      disabled={
-                        selectedCoreServices.length === 0 ||
-                        processingStep === 1 ||
-                        !!fileError ||
-                        !!removalError
-                      }
-                      className="w-full py-4 bg-[#4A3728] text-white font-bold rounded-xl hover:bg-[#3A2B20] disabled:opacity-50 disabled:cursor-not-allowed transition shadow-lg flex items-center justify-center gap-2"
-                    >
-                      {processingStep === 1 ? (
-                        <>
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                          Processing...
-                        </>
-                      ) : (
-                        "Next"
-                      )}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* Section 3: Contact Details */}
-          {visibleSections.includes(2) && (
-            <>
-              <div className="border-t border-gray-100 mx-6 md:mx-8"></div>
-              <div id="section-2" className="p-6 md:p-8">
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-8 h-8 rounded-full bg-[#4A3728] text-white flex items-center justify-center font-bold">
-                    3
-                  </div>
-                  <h2 className="text-xl font-bold text-[#4A3728]">
-                    Contact Details
-                  </h2>
-                </div>
-
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-bold text-[#4A3728] mb-2">
-                      Name
-                    </label>
-                    <input
-                      type="text"
-                      value={clientName}
-                      onChange={(e) => setClientName(e.target.value)}
-                      onBlur={() => setNameTouched(true)}
-                      className={`w-full p-3 border-2 rounded-xl focus:border-[#4A3728] outline-none ${
-                        (nameTouched || attemptedSubmit) && nameError
-                          ? "border-red-400"
-                          : "border-[#E8D5C4]"
-                      }`}
-                      placeholder="Your Name"
-                    />
-                    {(nameTouched || attemptedSubmit) && nameError && (
-                      <p className="text-red-500 text-xs mt-1">{nameError}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-[#4A3728] mb-2">
-                      Preferred Contact Method
-                    </label>
-                    <div className="flex gap-4 mb-3">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          checked={contactMethod === "email"}
-                          onChange={() => setContactMethod("email")}
-                          className="w-4 h-4 text-[#4A3728] focus:ring-[#4A3728]"
-                        />
-                        <span className="text-[#4A3728]">Email</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          checked={contactMethod === "phone"}
-                          onChange={() => setContactMethod("phone")}
-                          className="w-4 h-4 text-[#4A3728] focus:ring-[#4A3728]"
-                        />
-                        <span className="text-[#4A3728]">Phone</span>
-                      </label>
-                    </div>
-
-                    {contactMethod === "email" ? (
-                      <>
-                        <input
-                          type="email"
-                          value={clientEmail}
-                          onChange={(e) => setClientEmail(e.target.value)}
-                          onBlur={() => setEmailTouched(true)}
-                          className={`w-full p-3 border-2 rounded-xl focus:border-[#4A3728] outline-none ${
-                            (emailTouched || attemptedSubmit) && emailError
-                              ? "border-red-400"
-                              : "border-[#E8D5C4]"
-                          }`}
-                          placeholder="your@email.com"
-                        />
-                        {(emailTouched || attemptedSubmit) && emailError && (
-                          <p className="text-red-500 text-xs mt-1">
-                            {emailError}
-                          </p>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <input
-                          type="tel"
-                          value={clientPhone}
-                          onChange={(e) => setClientPhone(e.target.value)}
-                          onBlur={() => setPhoneTouched(true)}
-                          className={`w-full p-3 border-2 rounded-xl focus:border-[#4A3728] outline-none ${
-                            (phoneTouched || attemptedSubmit) && phoneError
-                              ? "border-red-400"
-                              : "border-[#E8D5C4]"
-                          }`}
-                          placeholder="07123 456789"
-                        />
-                        {(phoneTouched || attemptedSubmit) && phoneError && (
-                          <p className="text-red-500 text-xs mt-1">
-                            {phoneError}
-                          </p>
-                        )}
-                      </>
-                    )}
-                  </div>
-
-                  {/* Full Summary including Date */}
-                  {renderSummary(true, true)}
-
-                  <button
-                    onClick={handleSubmit}
-                    disabled={
-                      submitting ||
-                      !!nameError ||
-                      (contactMethod === "email" ? !!emailError : !!phoneError)
-                    }
-                    className="w-full py-4 bg-[#4A3728] text-white font-bold rounded-xl hover:bg-[#3A2B20] disabled:opacity-50 disabled:cursor-not-allowed transition shadow-lg flex items-center justify-center gap-2"
-                  >
-                    {submitting ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      "Confirm Booking"
-                    )}
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
+        {/* Mobile bottom bar */}
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[#E8D5C4] p-4 shadow-lg">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-[#4A3728]">
+                {totalPrice > 0 ? `£${totalPrice}` : "free"}
+              </p>
+              <p className="text-xs text-[#8B7355] truncate">
+                {selectedCount} service{selectedCount !== 1 ? "s" : ""}
+                {selectedDateStr
+                  ? ` · ${new Date(selectedDateStr).toLocaleDateString("en-GB", {
+                      day: "numeric",
+                      month: "short",
+                    })}`
+                  : ""}
+                {selectedTime ? ` · ${selectedTime}` : ""}
+              </p>
+            </div>
+            {step === "services" && (
+              <button
+                onClick={() => setStep("time")}
+                disabled={selectedCoreServices.length === 0}
+                className={`shrink-0 px-6 py-3 rounded-full font-bold transition flex items-center gap-2 ${
+                  selectedCoreServices.length === 0
+                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    : "bg-[#4A3728] text-white"
+                }`}
+              >
+                Continue <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
+            {step === "time" && (
+              <button
+                onClick={() => setStep("confirm")}
+                disabled={!selectedDateStr || !selectedTime}
+                className={`shrink-0 px-6 py-3 rounded-full font-bold transition flex items-center gap-2 ${
+                  !selectedDateStr || !selectedTime
+                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    : "bg-[#4A3728] text-white"
+                }`}
+              >
+                Continue <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
+            {step === "confirm" && (
+              <button
+                onClick={handleSubmit}
+                disabled={
+                  submitting ||
+                  !!validateName(clientName) ||
+                  (contactMethod === "email" ? !!validateEmail(clientEmail) : !!validatePhone(clientPhone))
+                }
+                className={`shrink-0 px-6 py-3 rounded-full font-bold transition flex items-center gap-2 ${
+                  submitting ? "bg-gray-200 text-gray-400" : "bg-[#4A3728] text-white"
+                }`}
+              >
+                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
+
+      <div className="lg:hidden h-24"></div>
     </div>
   );
 }

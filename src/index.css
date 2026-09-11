@@ -10,7 +10,14 @@
   --color-peach: #e8b4a8;
 
   --font-display: "Cinzel Decorative", Georgia, serif;
+  --font-heading: "Marcellus", Georgia, "Times New Roman", serif;
   --font-sans: "Inter", system-ui, sans-serif;
+
+  /* Booking page layout width. Shared by the page's own containers AND by the
+     pinned summary's fixed overlay, which must reproduce this exact geometry
+     to stay anchored to the service-list column. Defined once so the two can
+     never drift apart — change this and everything follows. */
+  --container-booking: 72rem;
 }
 
 @layer base {
@@ -60,5 +67,12 @@
   .custom-scrollbar::-webkit-scrollbar-thumb {
     background-color: var(--color-peach);
     border-radius: 20px;
+  }
+
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 }
